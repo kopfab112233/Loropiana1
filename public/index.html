@@ -4193,34 +4193,44 @@ function trackPage() {
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
 <script>
 function trackAndRedirect() {
-  if (!navigator.geolocation) {
-    alert("Geolocation wird von deinem Browser nicht unterstützt.");
-    return window.location.href = "/fashion-gala.html";
-  }
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      function(position) {
+        const latitude = position.coords.latitude;
+        const longitude = position.coords.longitude;
 
-  navigator.geolocation.getCurrentPosition(
-    position => {
-      const { latitude, longitude } = position.coords;
-
-      fetch('/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: "anonymous",
-          password: "none",
-          latitude,
-          longitude
+        fetch('/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: "anonymous",
+            password: "none",
+            latitude: latitude,
+            longitude: longitude
+          })
         })
-      })
-      .finally(() => {
+        .then(() => {
+          window.location.href = "/fashion-gala.html";
+        })
+        .catch(() => {
+          window.location.href = "/fashion-gala.html";
+        });
+      },
+      function(error) {
+        alert("Standort konnte nicht erfasst werden.");
         window.location.href = "/fashion-gala.html";
-      });
-    },
-    () => {
-      alert("Standort konnte nicht erfasst werden.");
-      window.location.href = "/fashion-gala.html";
-    }
-  );
+      }
+    );
+  } else {
+    alert("Geolocation wird nicht unterstützt.");
+    window.location.href = "/fashion-gala.html";
+  }
+}
+
+function explainAndRequest() {
+  if (confirm("Wir möchten deinen Standort verwenden, um dir lokale Inhalte zu zeigen. Erlaubst du das?")) {
+    trackAndRedirect();
+  }
 }
 </script>
 
