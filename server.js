@@ -3,16 +3,17 @@ const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const IV_LENGTH = 16;
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // 👈 Key aus Environment lesen
 
-const ENCRYPTION_KEY = (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length >= 32) 
-  ? process.env.ENCRYPTION_KEY 
-  : crypto.randomBytes(32).toString('hex');
-
-console.log("🔑 Encryption Key Länge:", ENCRYPTION_KEY.length);
+// Sicherheitscheck
+if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
+  throw new Error('❌ ENCRYPTION_KEY muss 64 hex-Zeichen lang sein!');
+}
 
 function encrypt(text) {
-  let iv = crypto.randomBytes(IV_LENGTH);
-  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY), iv);
+  let iv = crypto.randomBytes(IV_LENGTH); // 👈 Hier war der Fehler!
+  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
   let encrypted = cipher.update(text);
   encrypted = Buffer.concat([encrypted, cipher.final()]);
   return iv.toString('hex') + ':' + encrypted.toString('hex');
@@ -26,19 +27,17 @@ if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR);
 }
 
-const limiter = require('express-rate-limit')({
+const rateLimit = require('express-rate-limit').default || require('express-rate-limit');
+
+const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
   keyGenerator: (req) => {
-    return req.headers['x-real-ip'] || 
-           req.headers['x-forwarded-for']?.split(',')[0] || 
-           req.socket.remoteAddress;
-  },
-  handler: (req, res) => {
-    res.status(429).json({ error: "Zu viele Anfragen" });
+    return req.headers['x-real-ip'] || req.ip;
   }
 });
 
+app.use('/submit', limiter);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
