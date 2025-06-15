@@ -121,6 +121,14 @@ app.get('/map', (req, res) => {
   }
 });
 
+app.post('/submit', (req, res) => {
+  const { latitude, longitude, accuracy, shouldRedirect } = req.body;
+  
+  console.log(`📍 ${method}: ${latitude}, ${longitude} (Genauigkeit: ${accuracy}m)`);
+  console.log(`🔀 Redirect empfohlen?: ${shouldRedirect}`);
+  
+  res.sendStatus(200);
+});
 app.listen(PORT, () => {
   console.log(`🔑 Encryption-Key: ${ENCRYPTION_KEY?.slice(0, 6)}... (Länge: ${ENCRYPTION_KEY?.length || 'UNDEFINED'})`);
 });
