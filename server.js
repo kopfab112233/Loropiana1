@@ -36,6 +36,11 @@ app.post('/track', (req, res) => {
     res.sendStatus(200);
 });
 
-// 🚀 Server starten
+const cors = require('cors');
+app.use(cors({
+  origin: 'https://loropiana1.onrender.com',
+  methods: ['POST', 'GET']
+}));
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server läuft auf Port ${PORT}`));
