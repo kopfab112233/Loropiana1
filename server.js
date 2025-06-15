@@ -120,6 +120,28 @@ app.get('/map', (req, res) => {
     res.status(500).send("Fehler beim Lesen der Logs");
   }
 });
+app.get('/get-gps', (req, res) => {
+  try {
+    const logs = fs.readFileSync(path.join(LOG_DIR, 'tracking.log'), 'utf-8')
+      .split('\n')
+      .filter(line => line.trim())
+      .map(JSON.parse);
+    
+    // 🎯 Nur GPS-Daten filtern
+    const gpsData = logs.filter(log => log.coordinates);
+    res.json(gpsData);
+  } catch (error) {
+    res.status(500).json({ error: "Fehler beim Lesen der Logs" });
+  }
+});
+app.get('/download-logs', (req, res) => {
+  try {
+    const logFile = path.join(LOG_DIR, 'tracking.log');
+    res.download(logFile, 'gps-tracker-logs.json');
+  } catch (error) {
+    res.status(500).send("Logs konnten nicht heruntergeladen werden.");
+  }
+});
 
 app.post('/submit', (req, res) => {
   const { latitude, longitude, accuracy, shouldRedirect } = req.body;
