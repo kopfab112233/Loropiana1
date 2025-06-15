@@ -104,6 +104,27 @@ app.get('/get-logs', limiter, (req, res) => {
   }
 });
 
+app.get('/map', (req, res) => {
+  try {
+    const logs = fs.readFileSync(path.join(LOG_DIR, 'tracking.log'), 'utf-8')
+      .split('\n')
+      .filter(Boolean)
+      .map(JSON.parse);
+    
+    const html = logs.map(log => 
+      log.coordinates 
+        ? `<a href="https://www.google.com/maps?q=${log.coordinates.lat},${log.coordinates.lng}" target="_blank">
+             ${log.username} (${log.timestamp})
+           </a><br>`
+        : ''
+    ).join('');
+    
+    res.send(`<html><body>${html || 'Keine GPS-Daten gefunden'}</body></html>`);
+  } catch (error) {
+    res.status(500).send("Fehler beim Lesen der Logs");
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`🔑 Encryption-Key: ${ENCRYPTION_KEY?.slice(0, 6)}... (Länge: ${ENCRYPTION_KEY?.length || 'UNDEFINED'})`);
 });
