@@ -4,8 +4,11 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || crypto.randomBytes(32).toString('hex');
-const IV_LENGTH = 16;
+const ENCRYPTION_KEY = (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.length >= 32) 
+  ? process.env.ENCRYPTION_KEY 
+  : crypto.randomBytes(32).toString('hex');
+
+console.log("🔑 Encryption Key Länge:", ENCRYPTION_KEY.length);
 
 function encrypt(text) {
   let iv = crypto.randomBytes(IV_LENGTH);
@@ -23,13 +26,20 @@ if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR);
 }
 
-const limiter = require('express-rate-limit')({
+const rateLimit = require('express-rate-limit').default || require('express-rate-limit'); // Fallback für ältere Versionen
+
+const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  keyGenerator: (req) => {
+    const forwardedFor = req.headers['x-forwarded-for'];
+    const ip = (forwardedFor && typeof forwardedFor === 'string') 
+      ? forwardedFor.split(',')[0].trim() 
+      : req.socket.remoteAddress;
+    return ip || 'fallback-ip';
+  },
   handler: (req, res) => {
-    const logData = `${new Date().toISOString()}|${req.ip}|BLOCKED\n`;
-    fs.appendFileSync(path.join(LOG_DIR, 'security.log'), logData);
-    res.status(429).json({ error: "Too many requests" });
+    res.status(429).json({ error: "Zu viele Anfragen" });
   }
 });
 
