@@ -1,17 +1,15 @@
 {
-  "name": "zeta-gps-tracker",
+  "name": "loropiana-tracker",
   "version": "1.0.0",
-  "description": "Standort-Tracking für Zeta",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "geoip-lite": "^1.4.2",
-    "node-fetch": "^2.6.7"
+    "geoip-lite": "^1.4.2"
   },
   "engines": {
-    "node": "18.x"  // Render-kompatible Version
+    "node": "18.x"
   }
 }
