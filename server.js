@@ -16,8 +16,7 @@ app.use(express.static('public'));
 
 // 🌐 3. CORS mit Whitelisting (Sicherheit!)
 const allowedOrigins = [
-  'https://loropiana1.onrender.com',
-  'https://your-custom-domain.com' // Falls vorhanden
+  'https://loropiana1-1.onrender.com',
 ];
 
 app.use(cors({
