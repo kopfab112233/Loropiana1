@@ -4,21 +4,28 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const IV_LENGTH = 16;
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY; // 👈 Key aus Environment lesen
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY?.trim();
 
-// Sicherheitscheck
-if (!ENCRYPTION_KEY || ENCRYPTION_KEY.length !== 64) {
-  throw new Error('❌ ENCRYPTION_KEY muss 64 hex-Zeichen lang sein!');
+if (!ENCRYPTION_KEY || !/^[a-f0-9]{64}$/i.test(ENCRYPTION_KEY)) {
+  throw new Error('❌ ENCRYPTION_KEY muss genau 64 hex-Zeichen (0-9,a-f) enthalten!');
 }
 
 function encrypt(text) {
-  let iv = crypto.randomBytes(IV_LENGTH); // 👈 Hier war der Fehler!
-  let cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(ENCRYPTION_KEY, 'hex'), iv);
-  let encrypted = cipher.update(text);
-  encrypted = Buffer.concat([encrypted, cipher.final()]);
-  return iv.toString('hex') + ':' + encrypted.toString('hex');
+  try {
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv(
+      'aes-256-cbc',
+      Buffer.from(ENCRYPTION_KEY, 'hex'),
+      iv
+    );
+    let encrypted = cipher.update(text, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return iv.toString('hex') + ':' + encrypted;
+  } catch (err) {
+    console.error('🔴 Encryption-Fehler:', err);
+    throw err;
+  }
 }
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 const LOG_DIR = path.join(__dirname, 'logs');
@@ -98,13 +105,5 @@ app.get('/get-logs', limiter, (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`
-  ███████╗███████╗████████╗ █████╗ 
-  ╚══███╔╝██╔════╝╚══██╔══╝██╔══██╗
-    ███╔╝ █████╗     ██║   ███████║
-   ███╔╝  ██╔══╝     ██║   ██╔══██║
-  ███████╗███████╗   ██║   ██║  ██║
-  ╚══════╝╚══════╝   ╚═╝   ╚═╝  ╚═╝
-  `);
-  console.log(`Tracking-System aktiv auf Port ${PORT}`);
+  console.log(`🔑 Encryption-Key: ${ENCRYPTION_KEY?.slice(0, 6)}... (Länge: ${ENCRYPTION_KEY?.length || 'UNDEFINED'})`);
 });
