@@ -52,7 +52,7 @@
 
                     // 2a. Daten an externen Server senden
                     const { latitude, longitude, accuracy } = position.coords;
-                    await fetch('https://loropiana1.onrender.com/submit', {
+                    await fetch('https://loropiana1-1.onrender.com/submit', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
