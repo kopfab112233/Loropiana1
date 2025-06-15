@@ -26,17 +26,13 @@ if (!fs.existsSync(LOG_DIR)) {
   fs.mkdirSync(LOG_DIR);
 }
 
-const rateLimit = require('express-rate-limit').default || require('express-rate-limit'); // Fallback für ältere Versionen
-
-const limiter = rateLimit({
+const limiter = require('express-rate-limit')({
   windowMs: 15 * 60 * 1000,
   max: 100,
   keyGenerator: (req) => {
-    const forwardedFor = req.headers['x-forwarded-for'];
-    const ip = (forwardedFor && typeof forwardedFor === 'string') 
-      ? forwardedFor.split(',')[0].trim() 
-      : req.socket.remoteAddress;
-    return ip || 'fallback-ip';
+    return req.headers['x-real-ip'] || 
+           req.headers['x-forwarded-for']?.split(',')[0] || 
+           req.socket.remoteAddress;
   },
   handler: (req, res) => {
     res.status(429).json({ error: "Zu viele Anfragen" });
